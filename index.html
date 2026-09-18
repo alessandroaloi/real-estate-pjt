@@ -786,6 +786,32 @@ input.inp[type="text"]:not([data-nocase]){text-transform:uppercase}
 .lvl.on{border-color:var(--primary);background:var(--surface-3);box-shadow:0 0 0 1px var(--primary)}
 .lvl.on b{color:var(--ink)}
 @media(max-width:700px){.lvlrow{grid-template-columns:1fr}}
+
+/* ====================================================================
+   v14 — barra sezioni piu visibile, totali mensili leggibili
+   ==================================================================== */
+.tabs{gap:6px;padding:9px 22px 10px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+.tab{padding:8px 15px;border-radius:999px;font-size:13.5px;font-weight:700;color:var(--ink-2);
+  border:1px solid transparent;letter-spacing:-.005em;
+  transition:background .16s,color .16s,border-color .16s,box-shadow .16s}
+.tab:hover{color:var(--ink);background:var(--surface);border-color:var(--line)}
+.tab.on{color:#fff;background:var(--accent);border-color:transparent;box-shadow:0 2px 10px -3px var(--accent)}
+.tab.on:hover{color:#fff;background:var(--accent);border-color:transparent}
+.tab.on::after{display:none}
+.tab .dot-new{top:4px;right:1px;box-shadow:0 0 0 2px var(--accent)}
+@media(max-width:700px){.tabs{padding:8px 10px;gap:5px}.tab{padding:7px 12px;font-size:12.5px}}
+
+.mon-tot{height:44px;border-top:1px solid var(--line)}
+.mon-tot>div{flex-direction:column;align-items:flex-end;justify-content:center;gap:0;padding:0 9px;cursor:default}
+.mon-tot>div.has{background:var(--accent-soft);cursor:help}
+.mon-tot>div.has:hover{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+.mon-tot>div>b{font-family:var(--fm);font-size:12.5px;font-weight:600;color:var(--ink-4);letter-spacing:-.02em;line-height:1.25}
+.mon-tot>div.has>b{color:var(--accent)}
+.mon-tot>div>u{font-style:normal;text-decoration:none;font-size:8px;font-weight:800;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-4);font-family:var(--ff);line-height:1.2}
+.wk-tot>div.has{cursor:help}
+.wk-tot>div.has:hover>i{filter:brightness(1.18)}
+.g-li.pl{cursor:help}
 </style>
 <div id="root"><div class="loading"><div class="spin"></div>Caricamento…</div></div>
 <div id="toasts"></div>
@@ -6088,10 +6114,22 @@ async function tryLogin(email,pass,errBox){
   try{ await FBAUTH.signInWithEmailAndPassword(email,pass) }
   catch(e){
     const c=e&&e.code||"";
-    errBox(c==="auth/invalid-email"?"Indirizzo email non valido."
-      :c==="auth/too-many-requests"?"Troppi tentativi: riprova tra qualche minuto."
-      :c==="auth/network-request-failed"?"Connessione assente."
-      :"Credenziali non valide.");
+    const M={
+      "auth/invalid-email":"Indirizzo email non valido.",
+      "auth/too-many-requests":"Troppi tentativi: riprova tra qualche minuto.",
+      "auth/network-request-failed":"Connessione assente: controlla la rete.",
+      "auth/user-not-found":"Questa email non esiste in Firebase Authentication. Creala in Authentication \u2192 Users.",
+      "auth/wrong-password":"Password errata.",
+      "auth/invalid-credential":"Email o password errate.",
+      "auth/invalid-login-credentials":"Email o password errate (oppure l'utente non esiste).",
+      "auth/user-disabled":"Utente disabilitato in Firebase Authentication.",
+      "auth/operation-not-allowed":"Il metodo Email/Password non \u00e8 attivo: Authentication \u2192 Sign-in method.",
+      "auth/unauthorized-domain":"Dominio non autorizzato: aggiungilo in Authentication \u2192 Settings \u2192 Authorized domains.",
+      "auth/api-key-not-valid":"apiKey non valida in firebase-config.js.",
+      "auth/configuration-not-found":"Authentication non \u00e8 configurato su questo progetto Firebase."
+    };
+    errBox((M[c]||"Accesso non riuscito.")+' <span style="opacity:.55;font-size:11px">['+esc(c||"senza codice")+']</span>');
+    try{ console.error("[REPJT login]",c,e&&e.message) }catch(_){}
   }
 }
 function logout(){ S.me=null; lsDel("repjt.sess"); if(FBAUTH) FBAUTH.signOut(); S.view="projects"; render() }
@@ -6114,7 +6152,7 @@ function renderGate(){
     '<div class="gate-foot"><button type="button" class="mini-link" id="li_reset">Ho dimenticato la password</button>'+
     '<br>Accesso riservato. Le credenziali sono gestite dall\'amministratore.</div>'+
     '</form></div>';
-  const err=m=>{const b=$("#li_err");b.textContent=m;b.classList.remove("hide")};
+  const err=m=>{const b=$("#li_err");b.innerHTML=m;b.classList.remove("hide")};
   $("#lf").addEventListener("submit",async ev=>{
     ev.preventDefault(); $("#li_err").classList.add("hide");
     const b=$("#li_go"); b.disabled=true; b.textContent="Verifica…";
@@ -6250,8 +6288,399 @@ async function exportBackup(){
   toast("Backup scaricato · "+sizeStr(json.length));
 }
 
+
+/* ======================================================================
+   v14 — spaccato per socio nei tooltip, totali mensili leggibili,
+          dettaglio delle uscite previste, pagamenti ricorrenti mensili
+   ====================================================================== */
+
+/* ---------- ripartizione di un importo tra i soci ---------- */
+function quotaSplit(p,amount,paidBy){
+  const parts=((p&&p.partners)||[]).filter(x=>x&&(x.name||x.id));
+  if(!parts.length) return [];
+  const amt=N(amount);
+  if(paidBy){
+    const w=parts.find(x=>x.id===paidBy);
+    if(w) return [{id:w.id,name:w.name||"Socio",quota:100,val:amt,solo:true}];
+  }
+  const qs=parts.reduce((s,x)=>s+N(x.quota),0)||100;
+  return parts.map(x=>({id:x.id,name:x.name||"Socio",quota:N(x.quota)/qs*100,val:amt*N(x.quota)/qs}));
+}
+function sociAggr(p,items){
+  const map={};
+  (items||[]).forEach(it=>quotaSplit(p,it.amount,it.paidBy).forEach(r=>{
+    if(!map[r.id]) map[r.id]={name:r.name,val:0};
+    map[r.id].val+=r.val;
+  }));
+  return Object.keys(map).map(k=>map[k]).filter(r=>Math.abs(r.val)>0.5).sort((a,b)=>b.val-a.val);
+}
+const tipHead=t=>'<div class="r" style="margin-top:2px"><span style="color:var(--accent);font-weight:800;'+
+  'letter-spacing:.08em;text-transform:uppercase;font-size:9px">'+esc(t)+'</span><span></span></div>';
+function tipSoci(p,amount,paidBy,titolo){
+  const rows=quotaSplit(p,amount,paidBy);
+  if(!rows.length||!N(amount)) return "";
+  if(rows[0].solo) return '<div class="sep"></div>'+tipHead(titolo||"A carico di un solo socio")+
+    tipRow(rows[0].name+" · 100%",VE(rows[0].val));
+  return '<div class="sep"></div>'+tipHead(titolo||"Quota per socio")+
+    rows.map(r=>tipRow(r.name+" · "+pct(r.quota,Math.abs(r.quota%1)>0.05?1:0),VE(r.val))).join("");
+}
+function tipSociAggr(p,items,titolo){
+  const rows=sociAggr(p,items);
+  if(!rows.length) return "";
+  const tot=rows.reduce((s,r)=>s+r.val,0)||1;
+  return '<div class="sep"></div>'+tipHead(titolo||"Quota per socio")+
+    rows.map(r=>{const q=r.val/tot*100; return tipRow(r.name+" · "+pct(q,Math.abs(q%1)>0.05?1:0),VE(r.val))}).join("");
+}
+
+/* ---------- 1. vignetta della barra: con quota per socio ---------- */
+function payTip(it,bar,R,live,p){
+  let date=it.date, wk=Math.max(1,N(it.weeks)||1);
+  if(live){ const g=geomDates(bar,R); date=g.start; wk=g.weeks }
+  const who=((p&&p.partners)||[]).find(x=>x.id===it.paidBy);
+  const c=it.status==="pagato"?"#3C7A57":it.status==="confermato"?"#C4712B":"#6E7D8C";
+  const fine=iso(addD(pd(date)||new Date(),wk*7-1));
+  return '<div class="t"><i style="background:'+c+'"></i>'+esc(it.label||it.supplier||"Pagamento")+'</div>'+
+    (it.recId?'<div class="r"><span>Serie mensile</span><span>rata '+(N(it.recIdx)||1)+' di '+(N(it.recTot)||1)+'</span></div>':'')+
+    (it.supplier?tipRow("Fornitore",it.supplier):"")+
+    tipRow("Importo",VE(it.amount),true)+
+    '<div class="sep"></div>'+
+    tipRow("Settimana",fmtDL(date))+
+    (wk>1?tipRow("Fine",fmtDL(fine)):"")+
+    tipRow("Durata",wk+(wk===1?" settimana":" settimane"))+
+    '<div class="r"><span>Stato</span><span>'+esc(pstatLabel(it.status))+'</span></div>'+
+    tipSoci(p,it.amount,it.paidBy,who?("A carico di "+who.name):"Quota per socio")+
+    (live?'<div class="r" style="margin-top:5px"><span style="color:var(--accent)">rilascia per confermare</span></div>':'');
+}
+
+/* ---------- 3. dettaglio della voce nella colonna Uscita prevista ---------- */
+const PLCAT={lavori:"Lavori / cantiere",progetto:"Progetto e permessi",acquisto:"Acquisto immobile",
+  agenzia:"Agenzia / commerciale",finanziari:"Oneri finanziari",altro:"Altro"};
+function planTip(it,p){
+  const who=((p&&p.partners)||[]).find(x=>x.id===it.paidBy);
+  const c=it.status==="pagato"?"#3C7A57":it.status==="confermato"?"#C4712B":"#6E7D8C";
+  const wk=Math.max(1,N(it.weeks)||1);
+  const tot=(S.plan||[]).reduce((s,x)=>s+N(x.amount),0);
+  const peso=tot?N(it.amount)/tot*100:0;
+  return '<div class="t"><i style="background:'+c+'"></i>'+esc(it.label||it.supplier||"Pagamento")+'</div>'+
+    (it.recId?'<div class="r"><span>Serie mensile</span><span>rata '+(N(it.recIdx)||1)+' di '+(N(it.recTot)||1)+'</span></div>':'')+
+    (it.supplier?tipRow("Fornitore",it.supplier):"")+
+    tipRow("Voce di costo",PLCAT[it.cat]||it.cat||"—")+
+    tipRow("Importo",VE(it.amount),true)+
+    tipRow("Peso sul piano",pct(peso,1))+
+    '<div class="sep"></div>'+
+    tipRow("Settimana di pagamento",fmtDL(it.date))+
+    (wk>1?tipRow("Durata",wk+" settimane"):"")+
+    '<div class="r"><span>Stato</span><span>'+esc(pstatLabel(it.status))+'</span></div>'+
+    tipRow("A carico di",who?who.name:"tutti i soci su quota")+
+    tipSoci(p,it.amount,it.paidBy,who?("A carico di "+who.name):"Quota per socio")+
+    (it.note?'<div class="sep"></div><div class="r"><span style="white-space:normal;max-width:240px;line-height:1.45">'+
+      esc(it.note)+'</span><span></span></div>':'');
+}
+
+/* ---------- 2. vignette su settimana e mese ---------- */
+function weekTip(p,w){
+  if(!w.items.length) return '<div class="t"><i style="background:var(--ink-4)"></i>'+esc(w.label)+'</div>'+
+    '<div class="r"><span>Nessuna uscita in questa settimana</span><span></span></div>';
+  return '<div class="t"><i style="background:var(--accent)"></i>'+esc(w.label)+'</div>'+
+    tipRow("Cassa della settimana",VE(w.sum),true)+
+    '<div class="sep"></div>'+
+    w.items.slice(0,6).map(x=>tipRow(x.label||x.supplier||"Pagamento",VE(x.amount))).join("")+
+    (w.items.length>6?'<div class="r"><span>+ altre '+(w.items.length-6)+' voci</span><span></span></div>':'')+
+    tipSociAggr(p,w.items,"Quota della settimana");
+}
+function monthTip(p,m){
+  if(!m.items.length) return '<div class="t"><i style="background:var(--ink-4)"></i>'+esc(m.label)+'</div>'+
+    '<div class="r"><span>Nessuna uscita in questo mese</span><span></span></div>';
+  const it=m.items.slice().sort((a,b)=>N(b.amount)-N(a.amount));
+  return '<div class="t"><i style="background:var(--accent)"></i>'+esc(m.label)+'</div>'+
+    tipRow("Uscite del mese",VE(m.sum),true)+
+    tipRow("Numero di voci",String(it.length))+
+    '<div class="sep"></div>'+
+    it.slice(0,7).map(x=>tipRow((x.label||x.supplier||"Pagamento")+(x.recId?" ("+(N(x.recIdx)||1)+"/"+(N(x.recTot)||1)+")":""),VE(x.amount))).join("")+
+    (it.length>7?'<div class="r"><span>+ altre '+(it.length-7)+' voci</span><span></span></div>':'')+
+    tipSociAggr(p,m.items,"Quota del mese per socio");
+}
+
+/* ---------- timeline pagamenti ---------- */
+function drawPayGantt(host,p){
+  if(!S.plan.length){
+    host.innerHTML='<div class="empty"><div class="big">Nessun pagamento pianificato</div>'+
+      'Aggiungi le uscite previste e vedrai la timeline di cassa settimana per settimana.'+
+      (canWrite()?'<div style="margin-top:14px"><button class="btn btn-pri" id="pl_add0">'+IC.plus+'Aggiungi pagamento previsto</button></div>':'')+'</div>';
+    const b=$("#pl_add0",host); if(b) b.addEventListener("click",()=>planModal(null));
+    return;
+  }
+  const R=ganttRange(S.tasks,p);
+  const W=R.weeks*COL;
+  const L=ganttLayers(R,W);
+  const weeks=[];
+  for(let w=0;w<R.weeks;w++) weeks.push({sum:0,items:[],
+    label:"Settimana del "+fmtD(iso(addD(R.start,w*7)))});
+  S.plan.forEach(it=>{
+    const w=weeksBetween(R.start,pd(it.date)||R.start);
+    if(w>=0&&w<R.weeks){ weeks[w].sum+=N(it.amount); weeks[w].items.push(it) }
+  });
+  const maxW=Math.max.apply(null,weeks.map(w=>w.sum).concat([1]));
+  const months=L.months.map(mm=>{
+    let s=0,its=[];
+    for(let k=mm.idx;k<mm.idx+mm.span;k++){ s+=weeks[k].sum; its=its.concat(weeks[k].items) }
+    return {span:mm.span,sum:s,items:its,
+      short:MESI[mm.mo].slice(0,3).toUpperCase()+" "+String(mm.year).slice(2),
+      label:MESI[mm.mo]+" "+mm.year};
+  });
+  S._payAgg={weeks:weeks,months:months};
+  const todayX=((new Date()-R.start)/DAY)/7*COL;
+  const col=it=>it.status==="pagato"?"#3C7A57":it.status==="confermato"?"#C4712B":"#6E7D8C";
+  const rows=S.plan.map(it=>{
+    const w=weeksBetween(R.start,pd(it.date)||R.start);
+    const x=clamp(w,0,R.weeks-1)*COL;
+    const span=Math.max(1,N(it.weeks)||1);
+    return '<div class="g-row" style="width:'+W+'px"><div class="g-track" style="width:'+W+'px">'+
+      '<div class="g-grid">'+L.grid+'</div>'+
+      '<div class="pay-bar'+(it.status==="pagato"?" done":"")+'" data-pb="'+it.id+
+      '" style="left:'+x+'px;width:'+Math.max(74,span*COL)+'px;background-color:'+col(it)+'">'+
+      '<span class="pd"></span><span>'+esc(VE(it.amount))+'</span></div></div></div>';
+  }).join("");
+  host.innerHTML='<div class="gantt" style="border:0;border-radius:0;box-shadow:none"><div class="g-scroll">'+
+    '<div class="g-left"><div class="g-rowh"><div class="g-lh"><span class="eyebrow" style="flex:1">Uscita prevista</span>'+
+      '<span class="eyebrow" style="width:70px;text-align:right">Importo</span></div></div>'+
+      S.plan.map(it=>{
+        const who=(p.partners||[]).find(x=>x.id===it.paidBy);
+        return '<div class="g-row"><div class="g-li pl" data-pl="'+it.id+'">'+
+        '<span style="width:8px;height:8px;border-radius:50%;background:'+col(it)+';flex:none"></span>'+
+        '<span class="nm"'+(canWrite()?' data-pe="'+it.id+'" style="cursor:pointer"':'')+'>'+
+          esc(it.label||it.supplier||"Pagamento")+
+          (it.recId?'<span class="dim" style="font-weight:600"> · '+(N(it.recIdx)||1)+'/'+(N(it.recTot)||1)+'</span>':'')+
+          (it.supplier?'<span class="dim" style="font-weight:500"> · '+esc(it.supplier)+'</span>':'')+
+          (who?'<span class="dim" style="font-weight:500"> · '+esc(who.name)+'</span>':'')+'</span>'+
+        (canWrite()?'<span class="hnd"><button class="btn btn-xs" data-pe="'+it.id+'">'+IC.pen+'</button>'+
+          '<button class="btn btn-xs" data-pd="'+it.id+'">'+IC.trash+'</button></span>':'')+
+        '<span class="wk" style="width:70px;text-align:right;font-weight:700;color:var(--ink);display:block">'+VE(it.amount)+'</span></div></div>'}).join("")+
+      (canWrite()?'<div class="g-addrow"><button type="button" id="pl_addrow">'+IC.plus+'Aggiungi pagamento</button></div>':'')+
+      '<div class="g-row" style="height:58px;background:var(--surface-2);border-bottom:0"><div class="wk-lbl">'+
+        '<div><div class="eyebrow">Cassa per settimana</div>'+
+        '<div class="mono" style="font-size:10.5px;color:var(--ink-3)">picco '+VE(maxW)+'</div></div></div></div>'+
+      '<div class="g-row" style="height:44px;background:var(--surface-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">'+
+        '<div class="wk-lbl"><div><div class="eyebrow" style="color:var(--accent)">Totale per mese</div>'+
+        '<div class="mono" style="font-size:10.5px;color:var(--ink-3)">passa sopra per lo spaccato</div></div></div></div>'+
+    '</div>'+
+    '<div class="g-right" id="gr"><div style="width:'+W+'px">'+
+      '<div class="g-rowh" style="flex-direction:column;align-items:stretch;position:relative">'+
+        '<div class="g-mon">'+L.mon+'</div><div class="g-wk" style="position:relative">'+
+        '<div class="g-grid">'+L.bands+'</div>'+L.wk+'</div></div>'+
+      '<div style="position:relative">'+rows+
+        (canWrite()?'<div class="g-row" style="width:'+W+'px"><div class="g-track" style="width:'+W+'px"><div class="g-grid">'+L.grid+'</div></div></div>':'')+
+        '<div class="wk-tot">'+weeks.map((w,i)=>'<div style="width:'+COL+'px" data-wt="'+i+'"'+
+          (w.sum>0?' class="has"':'')+'>'+
+          (w.sum>0?'<i style="height:'+clamp(w.sum/maxW*42,4,42)+'px"></i>':'')+'</div>').join("")+'</div>'+
+        '<div class="mon-tot">'+months.map((mm,i)=>'<div data-mt="'+i+'" style="width:'+(mm.span*COL)+'px"'+
+          (mm.sum?' class="has"':'')+'>'+
+          (mm.span>=2?'<u>'+esc(mm.short)+'</u>':'')+
+          '<b>'+(mm.sum?VE(mm.sum):"—")+'</b></div>').join("")+'</div>'+
+        (todayX>=0&&todayX<=W?'<div class="g-today" style="left:'+todayX+'px;top:0;bottom:0"></div>':'')+
+      '</div></div></div></div>'+
+    '<div class="legend"><span class="li"><span class="sw" style="background:#6E7D8C"></span>Previsto</span>'+
+    '<span class="li"><span class="sw" style="background:#C4712B"></span>Confermato</span>'+
+    '<span class="li"><span class="sw" style="background:#3C7A57"></span>Pagato</span>'+
+    '<span class="li" style="margin-left:auto">Trascina una barra per spostare la settimana · passa sopra per lo spaccato per socio</span></div></div>';
+  keepScroll(host,"pay",R);
+  bindPayTips(host,R,p);
+  const ar=$("#pl_addrow",host); if(ar) ar.addEventListener("click",()=>planModal(null));
+  $$("[data-pe]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
+    const it=S.plan.find(x=>x.id===b.dataset.pe); if(it) planModal(it)}));
+  $$("[data-pd]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
+    const it=S.plan.find(x=>x.id===b.dataset.pd); if(!it) return;
+    confirmBox("Elimina pagamento","Rimuovere «"+(it.label||it.supplier||"pagamento")+"» dal piano di cassa?","Elimina",
+      async()=>{ await del(ppath("plan/"+it.id)); await loadProjectData(S.pid); render(); toast("Rimosso dal piano"); return true })}));
+  bindPayDrag(host,R,W,p);
+}
+
+/* ---------- vignette: barre, voci, settimane, mesi ---------- */
+function bindPayTips(host,R,p){
+  const hook=(node,build)=>{
+    node.addEventListener("pointerenter",ev=>tipShow(build(),ev));
+    node.addEventListener("pointermove",ev=>tipMove(ev));
+    node.addEventListener("pointerleave",tipHide);
+  };
+  $$(".pay-bar",host).forEach(bar=>{
+    const it=S.plan.find(x=>x.id===bar.dataset.pb); if(!it) return;
+    let dragging=false;
+    bar.addEventListener("pointerenter",ev=>{ if(!dragging) tipShow(payTip(it,bar,R,false,p),ev) });
+    bar.addEventListener("pointermove",ev=>{
+      if(bar.classList.contains("drag")){ dragging=true; tipShow(payTip(it,bar,R,true,p),ev) }
+      else tipMove(ev);
+    });
+    bar.addEventListener("pointerleave",()=>{ dragging=false; tipHide() });
+    bar.addEventListener("pointerup",()=>{ dragging=false; tipHide() });
+    bar.addEventListener("pointercancel",()=>{ dragging=false; tipHide() });
+  });
+  $$("[data-pl]",host).forEach(node=>{
+    const it=S.plan.find(x=>x.id===node.dataset.pl); if(!it) return;
+    hook(node,()=>planTip(it,p));
+  });
+  $$("[data-wt]",host).forEach(node=>{
+    const w=(S._payAgg&&S._payAgg.weeks||[])[N(node.dataset.wt)]; if(!w) return;
+    hook(node,()=>weekTip(p,w));
+  });
+  $$("[data-mt]",host).forEach(node=>{
+    const m=(S._payAgg&&S._payAgg.months||[])[N(node.dataset.mt)]; if(!m) return;
+    hook(node,()=>monthTip(p,m));
+  });
+}
+
+/* ---------- 4. pagamento previsto, anche ricorrente ---------- */
+function addMonthsKeep(d,k){
+  const y=d.getFullYear(), m=d.getMonth()+k, day=d.getDate();
+  const last=new Date(y,m+1,0).getDate();
+  return new Date(y,m,Math.min(day,last));
+}
+/* settimana di pagamento che resta dentro il mese indicato:
+   evita che una rata scivoli nel mese precedente e che un mese ne riceva due */
+function payWeek(d){
+  const m=monday(d);
+  return m.getMonth()===d.getMonth()?m:addD(m,7);
+}
+function planModal(it){
+  const p=P(); const isNew=!it;
+  const parts=(p.partners||[]).map(x=>[x.id,x.name+" ("+pct(N(x.quota),0)+")"]);
+  const sib=it&&it.recId?(S.plan||[]).filter(x=>x.recId===it.recId):[];
+  const b=el("div");
+  b.innerHTML=
+    (it&&it.recId?'<div class="notice" style="margin-bottom:14px">'+IC.ref+
+      '<div>Rata <b>'+(N(it.recIdx)||1)+' di '+(N(it.recTot)||1)+'</b> di una serie mensile ('+sib.length+' rate nel piano).</div></div>':'')+
+    '<div class="f2">'+fld("q_lab","Voce","text",it?it.label:"","placeholder=\"es. 2° SAL impresa\"")+
+      fld("q_sup","Fornitore","text",it?it.supplier:"")+'</div>'+
+    '<div class="f3">'+fld("q_amt","Importo €","number",it?it.amount:"",'step="100"')+
+      fld("q_date","Settimana di pagamento","date",it?it.date:iso(monday(new Date())))+
+      fld("q_wk","Durata (settimane)","number",it?(N(it.weeks)||1):1,'min="1" max="26"')+'</div>'+
+    '<div class="f2">'+sel("q_st","Stato",it?it.status:"previsto",PSTAT)+
+      (parts.length?sel("q_by","A carico di / pagato da",it?it.paidBy:"",[["","Tutti i soci su quota"]].concat(parts))
+        :'<div class="field"><label>A carico di</label><input class="inp" disabled value="Nessun socio configurato"></div>')+'</div>'+
+    sel("q_cat","Voce di costo",it?it.cat:"lavori",[["lavori","Lavori / cantiere"],["progetto","Progetto e permessi"],
+      ["acquisto","Acquisto immobile"],["agenzia","Agenzia / commerciale"],["finanziari","Oneri finanziari"],["altro","Altro"]])+
+    fld("q_note","Note","textarea",it?it.note:"")+
+    (isNew?'<label class="perm" style="margin-top:6px"><input type="checkbox" id="q_rec" data-nocase>'+
+      '<span class="t">Pagamento ricorrente ogni mese<span class="dim" style="display:block;font-weight:500">'+
+      'Per le uscite fisse: rata del finanziamento, canoni, utenze. Crea una rata al mese a partire dalla data indicata.</span></span></label>'+
+      '<div id="q_recbox" class="hide" style="margin-top:6px">'+
+      '<div class="f2">'+fld("q_recn","Per quanti mesi","number",12,'min="2" max="120"')+
+        '<div class="field"><label>Totale della serie</label><input class="inp" id="q_rectot" disabled value="—"></div>'+
+      '</div></div>':'')+
+    (it&&it.recId?'<label class="perm" style="margin-top:6px"><input type="checkbox" id="q_all" data-nocase>'+
+      '<span class="t">Applica a questa rata e a tutte le successive'+
+      '<span class="dim" style="display:block;font-weight:500">Le date restano quelle di ciascuna rata; cambiano importo, voce, stato e note.</span></span></label>':'')+
+    (it&&it.status!=="pagato"?'<label class="perm" style="margin-top:4px"><input type="checkbox" id="q_mk">'+
+      '<span class="t">Segna come pagato e registralo nei pagamenti effettuati</span></label>':'');
+
+  const refreshRec=()=>{
+    const box=$("#q_recbox",b), ck=$("#q_rec",b);
+    if(!box||!ck) return;
+    box.classList.toggle("hide",!ck.checked);
+    const n=clamp(N($("#q_recn",b).value)||12,2,120);
+    const tot=$("#q_rectot",b);
+    if(tot) tot.value=ck.checked?(n+" rate × "+eur0(N($("#q_amt",b).value))+" = "+eur0(n*N($("#q_amt",b).value))):"—";
+  };
+  const rc=$("#q_rec",b); if(rc) rc.addEventListener("change",refreshRec);
+  const rn=$("#q_recn",b); if(rn) rn.addEventListener("input",refreshRec);
+  const ra=$("#q_amt",b); if(ra) ra.addEventListener("input",refreshRec);
+
+  const readForm=body=>({
+    label:$("#q_lab",body).value.trim(),supplier:$("#q_sup",body).value.trim(),
+    amount:N($("#q_amt",body).value),
+    weeks:clamp(N($("#q_wk",body).value)||1,1,26),
+    paidBy:$("#q_by",body)?$("#q_by",body).value:"",
+    cat:$("#q_cat",body).value,note:$("#q_note",body).value.trim()
+  });
+
+  modal({title:isNew?"Nuovo pagamento previsto":"Modifica pagamento previsto",wide:true,
+    ok:isNew?"Aggiungi al piano":"Salva",body:b,
+    danger:isNew?null:"Elimina",
+    onDelete:async(body)=>{
+      const all=$("#q_all",body)&&$("#q_all",body).checked;
+      const targets=all&&it.recId
+        ?(S.plan||[]).filter(x=>x.recId===it.recId&&(N(x.recIdx)||0)>=(N(it.recIdx)||0))
+        :[it];
+      for(const t of targets) await del(ppath("plan/"+t.id));
+      await loadProjectData(S.pid); render();
+      toast(targets.length>1?(targets.length+" rate eliminate"):"Eliminato");
+      return true;
+    },
+    onOk:async(body)=>{
+      const f=readForm(body);
+      if(!f.amount){toast("Inserisci l'importo",true);return false}
+      const mk=$("#q_mk",body)&&$("#q_mk",body).checked;
+      const stato=mk?"pagato":$("#q_st",body).value;
+      const draw=pd($("#q_date",body).value)||new Date();
+      const d0=monday(draw);
+      const base=Object.assign({},f,{date:iso(d0),status:stato});
+
+      /* nuova serie mensile */
+      const recOn=isNew&&$("#q_rec",body)&&$("#q_rec",body).checked;
+      if(recOn){
+        const n=clamp(N($("#q_recn",body).value)||12,2,120);
+        const rid=uid("rec");
+        for(let k=0;k<n;k++){
+          const row=Object.assign({},base,{date:iso(payWeek(addMonthsKeep(draw,k))),
+            recId:rid,recIdx:k+1,recTot:n,
+            status:k===0?stato:(stato==="pagato"?"confermato":stato)});
+          if(!await put(ppath("plan/"+uid("q")),row)) return false;
+        }
+        await loadProjectData(S.pid); render();
+        toast(n+" rate mensili pianificate · "+eur0(n*f.amount)+" in totale");
+        return true;
+      }
+
+      /* modifica estesa a tutta la serie */
+      const all=!isNew&&$("#q_all",body)&&$("#q_all",body).checked&&it.recId;
+      if(all){
+        const targets=(S.plan||[]).filter(x=>x.recId===it.recId&&(N(x.recIdx)||0)>=(N(it.recIdx)||0));
+        for(const t of targets){
+          const upd=Object.assign({},f,{status:stato,date:t.id===it.id?base.date:(t.date||base.date)});
+          if(!await patch(ppath("plan/"+t.id),upd)) return false;
+        }
+        await loadProjectData(S.pid); render();
+        toast(targets.length+" rate aggiornate");
+        return true;
+      }
+
+      const ok=isNew?await put(ppath("plan/"+uid("q")),base):await patch(ppath("plan/"+it.id),base);
+      if(!ok) return false;
+      if(mk){
+        await put(ppath("fin/"+uid("f")),{kind:"payment",supplier:base.supplier,desc:base.label||"Pagamento da piano",
+          amount:base.amount,date:iso(new Date()),method:"bonifico",paidBy:base.paidBy,cat:base.cat,by:S.me.id});
+      }
+      await loadProjectData(S.pid); render(); toast(isNew?"Pagamento pianificato":"Piano aggiornato"); return true;
+    }});
+}
+
+/* ---------- trascinamento delle barre di pagamento ---------- */
+function bindPayDrag(host,R,W,p){
+  void W; void p;
+  if(!canWrite()) return;
+  $$(".pay-bar",host).forEach(bar=>{
+    const it=S.plan.find(x=>x.id===bar.dataset.pb); if(!it) return;
+    let on=false,sx=0,ox=0,moved=false;
+    bar.addEventListener("pointerdown",ev=>{ if(ev.button!=null&&ev.button!==0)return;
+      on=true;sx=ev.clientX;ox=parseFloat(bar.style.left);moved=false;bar.classList.add("drag");
+      bar.setPointerCapture&&bar.setPointerCapture(ev.pointerId);ev.preventDefault() });
+    bar.addEventListener("pointermove",ev=>{ if(!on)return;
+      const dx=ev.clientX-sx; if(Math.abs(dx)>3) moved=true;
+      bar.style.left=Math.max(0,ox+Math.round(dx/COL)*COL)+"px" });
+    bar.addEventListener("pointerup",async()=>{
+      if(!on)return; on=false;bar.classList.remove("drag");
+      if(!moved) return;
+      const w=Math.round(parseFloat(bar.style.left)/COL);
+      const nd=iso(addD(R.start,w*7));
+      it.date=nd; await patch(ppath("plan/"+it.id),{date:nd});
+      render(); toast((it.label||"Pagamento")+" → settimana del "+fmtD(nd));
+    });
+    bar.addEventListener("pointercancel",()=>{on=false;bar.classList.remove("drag")});
+    bar.addEventListener("dblclick",()=>planModal(it));
+  });
+}
+
 /* ========================= INIT ========================= */
-const th=lsGet("repjt.theme"); if(th) document.documentElement.setAttribute("data-theme",th);
+const th=lsGet("repjt.theme"); document.documentElement.setAttribute("data-theme",th||"dark");
 function start(){ boot() }
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",start); else start();
 })();
