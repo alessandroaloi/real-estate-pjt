@@ -1,0 +1,80 @@
+rules_version = '2';
+
+/* ============================================================
+   REAL ESTATE PJT — regole di sicurezza Firestore
+   Cambia ADMIN_EMAIL con la tua email di amministratore.
+   Queste regole valgono lato server: nessuno può aggirarle
+   modificando l'interfaccia dal browser.
+   ============================================================ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function adminEmail() { return 'alejjaloi@gmail.com'; }
+
+    function signedIn()  { return request.auth != null; }
+    function myPath()    { return /databases/$(database)/documents/accounts/$(request.auth.uid); }
+    function meExists()  { return signedIn() && exists(myPath()); }
+    function me()        { return get(myPath()).data; }
+
+    function isAdmin() {
+      return signedIn() && (
+        request.auth.token.email == adminEmail() ||
+        (meExists() && me().get('role', 'user') == 'master')
+      );
+    }
+
+    /* profilo presente e non disattivato */
+    function member() { return meExists() && me().get('active', true) == true; }
+
+    function perms()    { return me().get('perms', {}); }
+    function mayWrite() { return isAdmin() || (member() && perms().get('canWrite', true) == true); }
+    function mayCreate(){ return isAdmin() || (member() && perms().get('canCreate', false) == true); }
+
+    function projList() { return perms().get('projects', 'all'); }
+    function projAllowed(pid) {
+      return isAdmin() || (member() && (
+        projList() == 'all' || (projList() is List && pid in projList())
+      ));
+    }
+
+    /* ---------- profili ---------- */
+    match /accounts/{uid} {
+      /* ognuno legge il proprio profilo; i membri leggono l'elenco (nomi dei soci) */
+      allow read: if member() || request.auth.uid == uid;
+
+      /* solo l'amministratore crea profili.
+         Eccezione: il primo accesso dell'email amministratore crea il proprio. */
+      allow create: if isAdmin() ||
+        (request.auth.uid == uid && request.auth.token.email == adminEmail());
+
+      /* l'amministratore modifica tutto; l'utente solo i propri segnalibri di lettura */
+      allow update: if isAdmin() || (
+        request.auth.uid == uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['seenProj', 'seenDocs', 'lastLogin'])
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    /* ---------- operazioni immobiliari ---------- */
+    match /projects/{pid} {
+      allow read:   if projAllowed(pid);
+      allow create: if mayCreate();
+      allow update: if mayWrite() && projAllowed(pid);
+      allow delete: if isAdmin();
+
+      /* cantiere, finance, piano pagamenti, partite soci, documenti, allegati */
+      match /{sub}/{docId} {
+        allow read:  if projAllowed(pid);
+        allow write: if mayWrite() && projAllowed(pid);
+      }
+    }
+
+    /* tutto il resto è chiuso */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
