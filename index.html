@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#2B312A">
 <meta name="description" content="Gestionale per operazioni immobiliari: progetti, cantiere, finance, exit e documenti.">
 <meta name="robots" content="noindex,nofollow">
@@ -788,7 +791,7 @@ input.inp[type="text"]:not([data-nocase]){text-transform:uppercase}
 @media(max-width:700px){.lvlrow{grid-template-columns:1fr}}
 
 /* ====================================================================
-   v14 — barra sezioni piu visibile, totali mensili leggibili
+   v14 ‚Äî barra sezioni piu visibile, totali mensili leggibili
    ==================================================================== */
 .tabs{gap:6px;padding:9px 22px 10px;background:var(--surface-2);border-bottom:1px solid var(--line)}
 .tab{padding:8px 15px;border-radius:999px;font-size:13.5px;font-weight:700;color:var(--ink-2);
@@ -814,7 +817,7 @@ input.inp[type="text"]:not([data-nocase]){text-transform:uppercase}
 .g-li.pl{cursor:help}
 
 /* ====================================================================
-   v15 — le serie mensili occupano una sola riga della timeline
+   v15 ‚Äî le serie mensili occupano una sola riga della timeline
    ==================================================================== */
 .recbadge{display:inline-block;margin-left:7px;padding:1px 6px;border-radius:999px;background:var(--accent-soft);
   color:var(--accent);font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
@@ -822,8 +825,23 @@ input.inp[type="text"]:not([data-nocase]){text-transform:uppercase}
 .g-li .wk.two{display:flex!important;flex-direction:column;align-items:flex-end;justify-content:center;line-height:1.2}
 .g-li .wk.two>small{font-size:9px;color:var(--ink-4);font-weight:500;letter-spacing:-.01em}
 .pay-bar.mini{padding:0 5px;font-size:9.5px;min-width:32px;gap:4px;overflow:hidden}
+
+/* versione visibile: serve a capire subito se il browser mostra una copia vecchia */
+.side-ver{font-family:var(--fm);font-size:9.5px;color:var(--side-ink-2);opacity:.6;text-align:center;
+  padding:0 0 9px;letter-spacing:.05em}
+
+/* ====================================================================
+   v16 ‚Äî prezzo al m¬≤, accessori e sensitivit√† sul ‚Ç¨/m¬≤
+   ==================================================================== */
+.seg2{display:flex;gap:4px;padding:4px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:999px}
+.seg2>button{flex:1;padding:8px 12px;border:0;background:transparent;border-radius:999px;cursor:pointer;
+  font-family:var(--ff);font-size:12.5px;font-weight:700;color:var(--ink-3);transition:background .16s,color .16s}
+.seg2>button:hover{color:var(--ink)}
+.seg2>button.on{background:var(--accent);color:#fff;box-shadow:0 2px 8px -3px var(--accent)}
+.pm-tot{margin-top:16px;padding-top:12px;border-top:1px solid var(--line-2)}
+.pm-rt{color:var(--ink-2);font-family:var(--fm);flex:none}
 </style>
-<div id="root"><div class="loading"><div class="spin"></div>Caricamento…</div></div>
+<div id="root"><div class="loading"><div class="spin"></div>Caricamento‚Ä¶</div></div>
 <div id="toasts"></div>
 <script>
 (function(){
@@ -838,7 +856,7 @@ const uid=p=>(p||"x")+"_"+Date.now().toString(36)+Math.random().toString(36).sli
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const N=v=>{
   if(typeof v==="number") return isFinite(v)?v:0;
-  let s=String(v==null?"":v).trim().replace(/\s/g,"").replace(/[€%]/g,"");
+  let s=String(v==null?"":v).trim().replace(/\s/g,"").replace(/[‚Ç¨%]/g,"");
   if(!s) return 0;
   if(/^-?\d+(\.\d+)?$/.test(s)){ const n=parseFloat(s); return isFinite(n)?n:0 }
   if(s.indexOf(",")>=0){ s=s.replace(/\./g,"").replace(",",".") }
@@ -853,7 +871,7 @@ const DAY=864e5;
 function iso(d){const x=new Date(d);if(isNaN(x))return "";
   return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")}
 function pd(s){if(!s)return null;const d=new Date(s+"T00:00:00");return isNaN(d)?null:d}
-function fmtD(s){const d=pd(s);if(!d)return "—";return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear()}
+function fmtD(s){const d=pd(s);if(!d)return "‚Äî";return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear()}
 function monday(d){const x=new Date(d);x.setHours(0,0,0,0);const w=(x.getDay()+6)%7;x.setDate(x.getDate()-w);return x}
 function addD(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
 function weeksBetween(a,b){return Math.round((monday(b)-monday(a))/(7*DAY))}
@@ -1037,11 +1055,11 @@ function renderGate(){
   const noAcc=S.accounts.length===0;
   r.innerHTML='<div id="gate"><form class="gate-card" id="lf" autocomplete="on">'+
     '<div class="mark"><div class="mark-glyph">RE</div><div><div class="mark-name">REAL ESTATE PJT</div>'+
-    '<div class="mark-sub">Compro · Ristrutturo · Vendo</div></div></div>'+
+    '<div class="mark-sub">Compro ¬∑ Ristrutturo ¬∑ Vendo</div></div></div>'+
     '<h3 style="font-size:17px;margin-bottom:4px">Accedi alla piattaforma</h3>'+
     '<p class="muted" style="font-size:12.5px;margin-bottom:20px">Gestione integrata delle operazioni immobiliari.</p>'+
     '<div class="field"><label for="li_email">Email</label><input class="inp" id="li_email" type="email" autocomplete="username" placeholder="nome@dominio.it"></div>'+
-    '<div class="field"><label for="li_pass">Password</label><input class="inp" id="li_pass" type="password" autocomplete="current-password" placeholder="••••••••"></div>'+
+    '<div class="field"><label for="li_pass">Password</label><input class="inp" id="li_pass" type="password" autocomplete="current-password" placeholder="‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢"></div>'+
     '<button class="btn btn-pri btn-w" type="submit" id="li_go" style="margin-top:8px">Entra</button>'+
     '<div id="li_err" class="gate-err hide"></div>'+
     (noAcc?'<div class="gate-foot"><b>Nessun account presente.</b><br>L\'account amministratore deve ancora essere creato nell\'archivio.</div>'
@@ -1050,7 +1068,7 @@ function renderGate(){
   const err=m=>{const b=$("#li_err");b.textContent=m;b.classList.remove("hide")};
   $("#lf").addEventListener("submit",async ev=>{
     ev.preventDefault(); $("#li_err").classList.add("hide");
-    const b=$("#li_go"); b.disabled=true; b.textContent="Verifica…";
+    const b=$("#li_go"); b.disabled=true; b.textContent="Verifica‚Ä¶";
     await tryLogin($("#li_email").value,$("#li_pass").value,err);
     if($("#li_go")){ b.disabled=false; b.textContent="Entra" }
   });
@@ -1150,12 +1168,12 @@ function topHTML(){
     sw='<div class="psw" id="psw"><button class="psw-btn" id="pswb">'+
       '<span class="psw-dot">'+esc(initials(p.name))+'</span>'+
       '<span class="psw-txt"><span class="t" style="display:block">'+esc(p.name)+'</span>'+
-      '<span class="s">'+(p.entity==="societa"?"Società":"Persone fisiche")+'</span></span>'+
+      '<span class="s">'+(p.entity==="societa"?"Societ√†":"Persone fisiche")+'</span></span>'+
       '<span style="width:15px;height:15px;color:var(--ink-3);display:grid;place-items:center">'+IC.chev+'</span></button>'+
       (S.pswOpen?'<div class="psw-menu" id="pswm">'+
         vis.map(x=>'<button class="it'+(x.id===S.pid?" on":"")+'" data-sw="'+x.id+'"><span class="psw-dot" style="width:24px;height:24px">'+esc(initials(x.name))+'</span>'+
         '<span style="min-width:0"><span style="display:block;font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.name)+'</span>'+
-        '<span style="font-size:10.5px;color:var(--ink-3)">'+esc(x.city||x.address||"—")+'</span></span></button>').join("")+
+        '<span style="font-size:10.5px;color:var(--ink-3)">'+esc(x.city||x.address||"‚Äî")+'</span></span></button>').join("")+
         '<div class="sep"></div><button class="it" data-sw="__all"><span style="width:24px;display:grid;place-items:center;color:var(--ink-3)">'+IC.folder+'</span>'+
         '<span style="font-size:12.5px;font-weight:700">Tutti i progetti</span></button>'+
       '</div>':'')+'</div>';
@@ -1204,7 +1222,7 @@ async function openProject(id){
   S.pid=id; lsSet("repjt.pid",id);
   S.view="project"; S.sideOpen=false; S.pswOpen=false;
   if(!can(S.tab)) S.tab=firstTab();
-  const sc=$("#scroll"); if(sc) sc.innerHTML='<div class="loading"><div class="spin"></div>Apertura progetto…</div>';
+  const sc=$("#scroll"); if(sc) sc.innerHTML='<div class="loading"><div class="spin"></div>Apertura progetto‚Ä¶</div>';
   await loadProjectData(id);
   render();
 }
@@ -1279,7 +1297,7 @@ function ledgerBalances(p,fin,ledger){
   return {rows:Object.values(map),totalPaid:totalPaid,quotaSum:qSum};
 }
 const STATI=[["valutazione","In valutazione"],["acquisito","Acquisito"],["cantiere","In cantiere"],["vendita","In vendita"],["chiuso","Chiusa"]];
-const statoLabel=k=>(STATI.find(s=>s[0]===k)||["","—"])[1];
+const statoLabel=k=>(STATI.find(s=>s[0]===k)||["","‚Äî"])[1];
 const statoChip=k=>({valutazione:"info",acquisito:"acc",cantiere:"warn",vendita:"good",chiuso:""})[k]||"";
 
 /* ========================= PROJECTS ========================= */
@@ -1287,13 +1305,13 @@ function viewProjects(sc){
   const vis=visibleProjects();
   const page=el("div","page");
   let h='<div class="page-head"><div><h1>Progetti</h1>'+
-    '<div class="sub">'+vis.length+' operazion'+(vis.length===1?"e":"i")+' · compro, ristrutturo e vendo</div></div>'+
+    '<div class="sub">'+vis.length+' operazion'+(vis.length===1?"e":"i")+' ¬∑ compro, ristrutturo e vendo</div></div>'+
     '<div class="sp"></div>'+
     (canCreate()?'<button class="btn btn-pri" id="np">'+IC.plus+'Nuovo progetto</button>':'')+'</div>';
   if(!vis.length){
     h+='<div class="card"><div class="empty"><div class="big">Nessun progetto</div>'+
       (canCreate()?'Crea la tua prima operazione per iniziare a tracciare cantiere, finanza ed exit.'
-                  :'Non ti è stato assegnato ancora nessun progetto. Contatta l\'amministratore.')+'</div></div>';
+                  :'Non ti √® stato assegnato ancora nessun progetto. Contatta l\'amministratore.')+'</div></div>';
   }else{
     h+='<div class="grid g3" id="plist"></div>';
   }
@@ -1316,9 +1334,9 @@ function projectCard(p,i){
       '<span class="chip '+statoChip(p.status)+'"><span class="dt"></span>'+esc(statoLabel(p.status))+'</span>'+
     '</div>'+
     '<div class="row" style="gap:6px;margin-bottom:14px">'+
-      '<span class="chip">'+(p.entity==="societa"?"Società":"Persone fisiche")+'</span>'+
-      (p.sqm?'<span class="chip">'+esc(p.sqm)+' m²</span>':'')+
-      (p.units&&p.units.length?'<span class="chip">'+p.units.length+' unità</span>':'')+
+      '<span class="chip">'+(p.entity==="societa"?"Societ√†":"Persone fisiche")+'</span>'+
+      (p.sqm?'<span class="chip">'+esc(p.sqm)+' m¬≤</span>':'')+
+      (p.units&&p.units.length?'<span class="chip">'+p.units.length+' unit√†</span>':'')+
     '</div>'+
     '<div class="split"><span class="l">Prezzo di acquisto</span><span class="v">'+eur0(p.purchasePrice)+'</span></div>'+
     '<div class="split"><span class="l">Capitale investito</span><span class="v">'+eur0(m.capital)+'</span></div>'+
@@ -1336,28 +1354,28 @@ function projectModal(p){
   const b=el("div");
   b.innerHTML=
     fld("p_name","Nome operazione","text",p?p.name:"","placeholder=\"es. Corso Vittorio\"")+
-    '<div class="f2">'+fld("p_addr","Indirizzo","text",p?p.address:"")+fld("p_city","Città","text",p?p.city:"Torino")+'</div>'+
+    '<div class="f2">'+fld("p_addr","Indirizzo","text",p?p.address:"")+fld("p_city","Citt√†","text",p?p.city:"Torino")+'</div>'+
     '<div class="f2">'+
-      sel("p_ent","Tipo di soggetto",p?p.entity:"societa",[["societa","Società"],["fisiche","Persone fisiche"]])+
+      sel("p_ent","Tipo di soggetto",p?p.entity:"societa",[["societa","Societ√†"],["fisiche","Persone fisiche"]])+
       sel("p_st","Stato",p?p.status:"valutazione",STATI)+'</div>'+
     '<div class="f3">'+
-      fld("p_buy","Prezzo di acquisto €","number",p?p.purchasePrice:"")+
-      fld("p_bc","Costi acquisto (notaio, imposte) €","number",p?p.purchaseCosts:"")+
-      fld("p_cap","Capitale investito €","number",p?p.capitalInvested:"")+'</div>'+
+      fld("p_buy","Prezzo di acquisto ‚Ç¨","number",p?p.purchasePrice:"")+
+      fld("p_bc","Costi acquisto (notaio, imposte) ‚Ç¨","number",p?p.purchaseCosts:"")+
+      fld("p_cap","Capitale investito ‚Ç¨","number",p?p.capitalInvested:"")+'</div>'+
     '<div class="f3">'+
-      fld("p_wk","Budget lavori €","number",p?p.budgetWorks:"")+
-      fld("p_oc","Altri costi €","number",p?p.otherCosts:"")+
-      fld("p_sale","Prezzo vendita previsto €","number",p?p.salePrice:"")+'</div>'+
-    '<div class="f3">'+fld("p_sqm","Superficie m²","number",p?p.sqm:"")+
+      fld("p_wk","Budget lavori ‚Ç¨","number",p?p.budgetWorks:"")+
+      fld("p_oc","Altri costi ‚Ç¨","number",p?p.otherCosts:"")+
+      fld("p_sale","Prezzo vendita previsto ‚Ç¨","number",p?p.salePrice:"")+'</div>'+
+    '<div class="f3">'+fld("p_sqm","Superficie m¬≤","number",p?p.sqm:"")+
       fld("p_start","Data avvio","date",p?p.startDate:iso(new Date()))+
       fld("p_end","Exit prevista","date",p?p.endDate:"")+'</div>'+
     fld("p_note","Note","textarea",p?p.notes:"")+
     (isNew?'<div class="perm" style="margin-top:6px"><input type="checkbox" id="p_tpl" checked>'+
-      '<span class="t">Carica il cronoprogramma tipo (acquisto → cantiere → vendita)</span></div>':'');
+      '<span class="t">Carica il cronoprogramma tipo (acquisto ‚Üí cantiere ‚Üí vendita)</span></div>':'');
   modal({title:isNew?"Nuovo progetto":"Modifica progetto",wide:true,body:b,ok:isNew?"Crea progetto":"Salva",
     danger:isNew?null:"Elimina progetto",
     onDelete:async()=>{
-      if(!confirm("Eliminare definitivamente «"+p.name+"» e tutti i suoi dati?")) return false;
+      if(!confirm("Eliminare definitivamente ¬´"+p.name+"¬ª e tutti i suoi dati?")) return false;
       await del("projects/"+p.id);
       for(const sub of ["tasks","fin","ledger","files"]){
         try{const q=await S.db.collection("projects/"+p.id+"/"+sub).get();
@@ -1367,7 +1385,7 @@ function projectModal(p){
     },
     onOk:async(body)=>{
       const name=$("#p_name",body).value.trim();
-      if(!name){ toast("Il nome è obbligatorio",true); return false }
+      if(!name){ toast("Il nome √® obbligatorio",true); return false }
       const data={
         name:name,address:$("#p_addr",body).value.trim(),city:$("#p_city",body).value.trim(),
         entity:$("#p_ent",body).value,status:$("#p_st",body).value,
@@ -1420,7 +1438,7 @@ function viewPortfolio(sc){
       kpi("Capitale investito",eur0(tot.cap),IC.wallet,vis.length+" operazioni","")+
       kpi("Costi totali previsti",eur0(tot.cost),IC.euro,"acquisto + lavori","info")+
       kpi("Ricavi previsti",eur0(tot.rev),IC.tag,"prezzi di vendita attesi","acc")+
-      kpi("Margine netto atteso",eur0(tot.net),IC.trend,(tot.cap?pct(tot.net/tot.cap*100):"—")+" su capitale",tot.net>=0?"good":"bad")+
+      kpi("Margine netto atteso",eur0(tot.net),IC.trend,(tot.cap?pct(tot.net/tot.cap*100):"‚Äî")+" su capitale",tot.net>=0?"good":"bad")+
     '</div>'+
     '<div class="card"><div class="card-h"><h3>Operazioni</h3><div class="sp"></div>'+
     '<span class="chip">'+vis.length+'</span></div><div class="tbl-wrap"><table class="tbl"><thead><tr>'+
@@ -1433,8 +1451,8 @@ function viewPortfolio(sc){
   vis.forEach(p=>{
     const m=metrics(p,[],[]);
     const tr=el("tr"); tr.style.cursor="pointer";
-    tr.innerHTML='<td><b>'+esc(p.name)+'</b><div style="font-size:11.5px;color:var(--ink-3)">'+esc(p.address||p.city||"—")+'</div></td>'+
-      '<td>'+(p.entity==="societa"?"Società":"Persone fisiche")+'</td>'+
+    tr.innerHTML='<td><b>'+esc(p.name)+'</b><div style="font-size:11.5px;color:var(--ink-3)">'+esc(p.address||p.city||"‚Äî")+'</div></td>'+
+      '<td>'+(p.entity==="societa"?"Societ√†":"Persone fisiche")+'</td>'+
       '<td><span class="chip '+statoChip(p.status)+'">'+esc(statoLabel(p.status))+'</span></td>'+
       '<td class="r">'+eur0(m.buy)+'</td><td class="r">'+eur0(m.capital)+'</td><td class="r">'+eur0(m.rev)+'</td>'+
       '<td class="r" style="font-weight:700;color:'+(m.net>=0?"var(--good)":"var(--bad)")+'">'+eur0(m.net)+'</td>'+
@@ -1464,15 +1482,15 @@ function viewControl(sc,p){
   const page=el("div","page");
   page.innerHTML=
    '<div class="page-head"><div><h1>'+esc(p.name)+'</h1>'+
-     '<div class="sub">'+esc(p.address||p.city||"—")+' · '+(p.entity==="societa"?"Società":"Persone fisiche")+
-     ' · <span class="chip '+statoChip(p.status)+'" style="vertical-align:middle">'+esc(statoLabel(p.status))+'</span></div></div>'+
+     '<div class="sub">'+esc(p.address||p.city||"‚Äî")+' ¬∑ '+(p.entity==="societa"?"Societ√†":"Persone fisiche")+
+     ' ¬∑ <span class="chip '+statoChip(p.status)+'" style="vertical-align:middle">'+esc(statoLabel(p.status))+'</span></div></div>'+
      '<div class="sp"></div>'+
      (canWrite()?'<button class="btn" id="edp">'+IC.pen+'Modifica dati</button>':'')+'</div>'+
 
    '<div class="grid g4" style="margin-bottom:14px">'+
      kpi("Prezzo di acquisto",eur0(m.buy),IC.home,"+ "+eur0(m.buyCosts)+" costi d'acquisto","")+
      kpi("Capitale investito",eur0(m.capital),IC.wallet,"costi previsti "+eur0(m.plannedCost),"info")+
-     kpi("Speso in cantiere",eur0(m.paid),IC.euro,"budget "+eur0(m.works)+" · "+pct(m.spentPct,0),m.spentPct>100?"bad":"acc")+
+     kpi("Speso in cantiere",eur0(m.paid),IC.euro,"budget "+eur0(m.works)+" ¬∑ "+pct(m.spentPct,0),m.spentPct>100?"bad":"acc")+
      kpi("Margine netto atteso",eur0(m.net),IC.trend,"ROI netto "+pct(m.roiN),m.net>=0?"good":"bad")+
    '</div>'+
 
@@ -1503,7 +1521,7 @@ function viewControl(sc,p){
        '<div class="split"><span class="l">Costi totali</span><span class="v">'+eur0(m.plannedCost)+'</span></div>'+
        '<div class="split"><span class="l">Fee agenzia</span><span class="v">'+eur0(m.fee)+'</span></div>'+
        '<div class="split"><span class="l">Margine lordo</span><span class="v">'+eur0(m.gross)+'</span></div>'+
-       '<div class="split"><span class="l">Imposte ('+pct(m.taxRate,1)+')</span><span class="v" style="color:var(--bad)">−'+eur0(m.taxes)+'</span></div>'+
+       '<div class="split"><span class="l">Imposte ('+pct(m.taxRate,1)+')</span><span class="v" style="color:var(--bad)">‚àí'+eur0(m.taxes)+'</span></div>'+
        '<div class="split tot"><span class="l">Margine netto</span><span class="v" style="color:'+(m.net>=0?"var(--good)":"var(--bad)")+'">'+eur0(m.net)+'</span></div>'+
        '<div class="row" style="gap:8px;margin-top:14px">'+
          '<div style="flex:1;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px">'+
@@ -1560,7 +1578,7 @@ function viewGantt(sc,p){
   const page=el("div","page");
   const prog=progressOf(S.tasks);
   page.innerHTML='<div class="page-head"><div><h1>Cantiere</h1>'+
-    '<div class="sub">Cronoprogramma settimanale · trascina le barre per spostare le fasi</div></div><div class="sp"></div>'+
+    '<div class="sub">Cronoprogramma settimanale ¬∑ trascina le barre per spostare le fasi</div></div><div class="sp"></div>'+
     '<div class="row">'+
       '<div style="text-align:right;margin-right:6px"><div class="eyebrow">Avanzamento</div>'+
       '<div style="font-size:18px;font-weight:800;letter-spacing:-.03em">'+pct(prog,0)+'</div></div>'+
@@ -1581,7 +1599,7 @@ function drawGantt(host,p){
       (canWrite()?'<div style="margin-top:14px"><button class="btn btn-pri" id="g_tpl">Carica cronoprogramma tipo</button></div>':'')+
       '</div></div>';
     const t=$("#g_tpl",host);
-    if(t) t.addEventListener("click",async()=>{ t.disabled=true;t.textContent="Creazione…";
+    if(t) t.addEventListener("click",async()=>{ t.disabled=true;t.textContent="Creazione‚Ä¶";
       await seedTemplate(p.id,p.startDate); await loadProjectData(p.id); render(); toast("Cronoprogramma creato") });
     return;
   }
@@ -1617,7 +1635,7 @@ function drawGantt(host,p){
     '<div class="legend">'+CATS.filter(c=>S.tasks.some(t=>t.cat===c.k)).map(c=>
       '<span class="li"><span class="sw" style="background:'+c.c+'"></span>'+esc(c.n)+'</span>').join("")+
     '<span class="li" style="margin-left:auto"><span class="sw" style="background:var(--accent)"></span>Oggi</span></div></div>';
-  // sync vertical scroll of left/right by using same container heights (rows aligned) — nothing needed
+  // sync vertical scroll of left/right by using same container heights (rows aligned) ‚Äî nothing needed
   bindGanttRows(host,R,W,p);
 }
 function ganttLeft(t,idx){
@@ -1653,7 +1671,7 @@ function bindGanttRows(host,R,W,p){
     const t=S.tasks.find(x=>x.id===b.dataset.ed); if(t) taskModal(t,t.group)}));
   $$("[data-rm]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
     const t=S.tasks.find(x=>x.id===b.dataset.rm); if(!t)return;
-    confirmBox("Elimina fase","Eliminare «"+t.name+"» dal cronoprogramma?","Elimina",async()=>{
+    confirmBox("Elimina fase","Eliminare ¬´"+t.name+"¬ª dal cronoprogramma?","Elimina",async()=>{
       await del(ppath("tasks/"+t.id)); await loadProjectData(S.pid); await syncProgress(p); render(); toast("Fase eliminata")})}));
   if(!canWrite()) return;
   $$(".g-bar",host).forEach(bar=>{
@@ -1686,7 +1704,7 @@ function bindGanttRows(host,R,W,p){
       await patch(ppath("tasks/"+t.id),data);
       await syncProgress(p);
       render();
-      toast(t.name+" · "+fmtD(data.start)+" → "+fmtD(data.end));
+      toast(t.name+" ¬∑ "+fmtD(data.start)+" ‚Üí "+fmtD(data.end));
       void m;
     };
     bar.addEventListener("pointerdown",down);
@@ -1742,7 +1760,7 @@ async function exportGanttCsv(p){
   const rows=[["Fase","Categoria","Impresa","Inizio","Fine","Durata (sett.)","Avanzamento %"]];
   S.tasks.forEach(t=>{ rows.push([t.group?("["+t.name+"]"):t.name,t.group?"":catOf(t.cat).n,t.resp||"",
     t.start||"",t.end||"",t.start&&t.end?Math.max(1,weeksBetween(t.start,t.end)+1):"",t.group?"":Math.round(N(t.progress))]) });
-  const csv="﻿"+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\r\n");
+  const csv="Ôªø"+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\r\n");
   if(!S.dl){ toast("Download non disponibile in questa vista",true); return }
   try{ await S.dl.save({filename:"cronoprogramma-"+String(p.name).replace(/[^\w]+/g,"-").toLowerCase()+".csv",data:csv});
     toast("CSV salvato") }
@@ -1751,7 +1769,7 @@ async function exportGanttCsv(p){
 
 /* ========================= FINANCE ========================= */
 const FSTAT=[["draft","Da approvare"],["approved","Approvata"],["paid","Pagata"]];
-const fstatLabel=k=>(FSTAT.find(x=>x[0]===k)||["","—"])[1];
+const fstatLabel=k=>(FSTAT.find(x=>x[0]===k)||["","‚Äî"])[1];
 const fstatChip=k=>({draft:"warn",approved:"info",paid:"good"})[k]||"";
 const METHODS=[["bonifico","Bonifico"],["contanti","Contanti"],["assegno","Assegno"],["carta","Carta"],["compensazione","Compensazione"]];
 function viewFinance(sc,p){
@@ -1776,7 +1794,7 @@ function viewFinance(sc,p){
       '</tr></thead><tbody id="rq"></tbody></table></div></div>'+
     '<div class="card" style="margin-bottom:14px"><div class="card-h"><h3>Pagamenti effettuati</h3><div class="sp"></div>'+
       '<span class="chip">'+pays.length+'</span></div><div class="tbl-wrap"><table class="tbl"><thead><tr>'+
-      '<th>Data</th><th>Fornitore</th><th>Descrizione</th><th>Pagato da</th><th>Modalità</th><th class="r">Importo</th><th></th>'+
+      '<th>Data</th><th>Fornitore</th><th>Descrizione</th><th>Pagato da</th><th>Modalit√†</th><th class="r">Importo</th><th></th>'+
       '</tr></thead><tbody id="pb"></tbody></table></div></div>'+
     '<div class="grid g21">'+
       '<div class="card"><div class="card-h"><h3>Conti tra soci</h3><div class="sp"></div>'+
@@ -1793,9 +1811,9 @@ function viewFinance(sc,p){
   reqs.forEach(f=>{
     const tr=el("tr");
     const overdue=f.status!=="paid"&&f.due&&f.due<iso(new Date());
-    tr.innerHTML='<td><b>'+esc(f.supplier||"—")+'</b></td><td class="muted">'+esc(f.desc||"")+'</td>'+
+    tr.innerHTML='<td><b>'+esc(f.supplier||"‚Äî")+'</b></td><td class="muted">'+esc(f.desc||"")+'</td>'+
       '<td class="mono" style="font-size:12px">'+fmtD(f.date)+'</td>'+
-      '<td class="mono" style="font-size:12px'+(overdue?';color:var(--bad);font-weight:700':'')+'">'+(f.due?fmtD(f.due):"—")+'</td>'+
+      '<td class="mono" style="font-size:12px'+(overdue?';color:var(--bad);font-weight:700':'')+'">'+(f.due?fmtD(f.due):"‚Äî")+'</td>'+
       '<td class="r" style="font-weight:700">'+eur0(f.amount)+'</td>'+
       '<td><span class="chip '+fstatChip(f.status)+'">'+esc(fstatLabel(f.status))+'</span></td>'+
       '<td class="r"><span class="act row" style="justify-content:flex-end;gap:4px">'+
@@ -1810,10 +1828,10 @@ function viewFinance(sc,p){
   pays.forEach(f=>{
     const who=(p.partners||[]).find(x=>x.id===f.paidBy);
     const tr=el("tr");
-    tr.innerHTML='<td class="mono" style="font-size:12px">'+fmtD(f.date)+'</td><td><b>'+esc(f.supplier||"—")+'</b></td>'+
+    tr.innerHTML='<td class="mono" style="font-size:12px">'+fmtD(f.date)+'</td><td><b>'+esc(f.supplier||"‚Äî")+'</b></td>'+
       '<td class="muted">'+esc(f.desc||"")+'</td>'+
-      '<td>'+(who?'<span class="chip acc">'+esc(who.name)+'</span>':'<span class="dim">—</span>')+'</td>'+
-      '<td class="muted" style="font-size:12px">'+esc((METHODS.find(x=>x[0]===f.method)||["","—"])[1])+'</td>'+
+      '<td>'+(who?'<span class="chip acc">'+esc(who.name)+'</span>':'<span class="dim">‚Äî</span>')+'</td>'+
+      '<td class="muted" style="font-size:12px">'+esc((METHODS.find(x=>x[0]===f.method)||["","‚Äî"])[1])+'</td>'+
       '<td class="r" style="font-weight:700">'+eur0(f.amount)+'</td>'+
       '<td class="r"><span class="act row" style="justify-content:flex-end;gap:4px">'+
       (canWrite()?'<button class="btn btn-xs" data-fe="'+f.id+'">'+IC.pen+'</button>'+
@@ -1823,12 +1841,12 @@ function viewFinance(sc,p){
   // ledger
   const lg=$("#lg",page);
   if(!S.ledger.length) lg.innerHTML='<tr><td colspan="6"><div class="empty">Nessuna partita tra soci.<br>'+
-    '<span style="font-size:12px">Esempio: «Aloi ha pagato 1.000 € per conto di Pasta».</span></div></td></tr>';
+    '<span style="font-size:12px">Esempio: ¬´Aloi ha pagato 1.000 ‚Ç¨ per conto di Pasta¬ª.</span></div></td></tr>';
   S.ledger.forEach(l=>{
     const a=(p.partners||[]).find(x=>x.id===l.from), bb=(p.partners||[]).find(x=>x.id===l.to);
     const tr=el("tr");
     tr.innerHTML='<td class="mono" style="font-size:12px">'+fmtD(l.date)+'</td>'+
-      '<td><b>'+esc(a?a.name:"—")+'</b></td><td>'+esc(bb?bb.name:"—")+'</td>'+
+      '<td><b>'+esc(a?a.name:"‚Äî")+'</b></td><td>'+esc(bb?bb.name:"‚Äî")+'</td>'+
       '<td class="muted">'+esc(l.desc||"")+'</td><td class="r" style="font-weight:700">'+eur0(l.amount)+'</td>'+
       '<td class="r"><span class="act">'+(canWrite()?'<button class="btn btn-xs" data-ld="'+l.id+'">'+IC.trash+'</button>':'')+'</span></td>';
     lg.appendChild(tr);
@@ -1857,7 +1875,7 @@ function viewFinance(sc,p){
   $$("[data-fe]",page).forEach(b=>b.addEventListener("click",()=>{const f=S.fin.find(x=>x.id===b.dataset.fe);if(f)finModal(f,f.kind)}));
   $$("[data-fd]",page).forEach(b=>b.addEventListener("click",()=>{
     const f=S.fin.find(x=>x.id===b.dataset.fd); if(!f)return;
-    confirmBox("Elimina voce","Eliminare «"+(f.supplier||f.desc||"voce")+"» ("+eur0(f.amount)+")?","Elimina",async()=>{
+    confirmBox("Elimina voce","Eliminare ¬´"+(f.supplier||f.desc||"voce")+"¬ª ("+eur0(f.amount)+")?","Elimina",async()=>{
       await del(ppath("fin/"+f.id)); await loadProjectData(S.pid); render(); toast("Voce eliminata")})}));
   $$("[data-ld]",page).forEach(b=>b.addEventListener("click",async()=>{
     await del(ppath("ledger/"+b.dataset.ld)); await loadProjectData(S.pid); render(); toast("Partita eliminata")}));
@@ -1870,14 +1888,14 @@ function finModal(f,kind){
   const b=el("div");
   b.innerHTML=
     '<div class="f2">'+fld("x_sup","Fornitore / impresa","text",f?f.supplier:"")+
-      fld("x_amt","Importo €","number",f?f.amount:"",'step="0.01"')+'</div>'+
+      fld("x_amt","Importo ‚Ç¨","number",f?f.amount:"",'step="0.01"')+'</div>'+
     fld("x_desc","Descrizione","text",f?f.desc:"")+
     '<div class="f2">'+fld("x_date",isReq?"Data richiesta":"Data pagamento","date",f?f.date:iso(new Date()))+
       (isReq?fld("x_due","Scadenza","date",f?f.due:"")
-            :sel("x_meth","Modalità",f?f.method:"bonifico",METHODS))+'</div>'+
+            :sel("x_meth","Modalit√†",f?f.method:"bonifico",METHODS))+'</div>'+
     '<div class="f2">'+
       (isReq?sel("x_st","Stato",f?f.status:"draft",FSTAT)
-            :(parts.length?sel("x_by","Pagato da (socio)",f?f.paidBy:(parts[0]||[""])[0],[["","—"]].concat(parts))
+            :(parts.length?sel("x_by","Pagato da (socio)",f?f.paidBy:(parts[0]||[""])[0],[["","‚Äî"]].concat(parts))
                           :'<div class="field"><label>Pagato da</label><input class="inp" disabled value="Nessun socio configurato"></div>'))+
       sel("x_cat","Voce di costo",f?f.cat:"lavori",[["lavori","Lavori / cantiere"],["progetto","Progetto e permessi"],
         ["acquisto","Acquisto immobile"],["agenzia","Agenzia / commerciale"],["finanziari","Oneri finanziari"],["altro","Altro"]])+
@@ -1903,12 +1921,12 @@ function finModal(f,kind){
 function payRequest(f,p){
   const parts=(p.partners||[]).map(x=>[x.id,x.name]);
   const b=el("div");
-  b.innerHTML='<p class="muted" style="font-size:13px;margin-bottom:14px">Registri il pagamento di <b>'+esc(f.supplier||"—")+
-    '</b> per <b>'+eur0(f.amount)+'</b>. La richiesta verrà segnata come pagata.</p>'+
-    '<div class="f2">'+fld("y_amt","Importo pagato €","number",f.amount,'step="0.01"')+
+  b.innerHTML='<p class="muted" style="font-size:13px;margin-bottom:14px">Registri il pagamento di <b>'+esc(f.supplier||"‚Äî")+
+    '</b> per <b>'+eur0(f.amount)+'</b>. La richiesta verr√† segnata come pagata.</p>'+
+    '<div class="f2">'+fld("y_amt","Importo pagato ‚Ç¨","number",f.amount,'step="0.01"')+
       fld("y_date","Data pagamento","date",iso(new Date()))+'</div>'+
-    '<div class="f2">'+sel("y_meth","Modalità","bonifico",METHODS)+
-      (parts.length?sel("y_by","Pagato da (socio)",(parts[0]||[""])[0],[["","—"]].concat(parts))
+    '<div class="f2">'+sel("y_meth","Modalit√†","bonifico",METHODS)+
+      (parts.length?sel("y_by","Pagato da (socio)",(parts[0]||[""])[0],[["","‚Äî"]].concat(parts))
                    :'<div class="field"><label>Pagato da</label><input class="inp" disabled value="Nessun socio"></div>')+'</div>';
   modal({title:"Registra pagamento",body:b,ok:"Registra pagamento",onOk:async(body)=>{
     const data={kind:"payment",supplier:f.supplier,desc:f.desc||("Saldo richiesta "+fmtD(f.date)),
@@ -1961,7 +1979,7 @@ function ledgerModal(p){
   const b=el("div");
   b.innerHTML='<p class="muted" style="font-size:12.5px;margin-bottom:14px">Registra un esborso fatto da un socio per conto di un altro.</p>'+
     '<div class="f2">'+sel("l_from","Ha pagato",(parts[0]||[""])[0],parts)+sel("l_to","Per conto di",(parts[1]||[""])[0],parts)+'</div>'+
-    '<div class="f2">'+fld("l_amt","Importo €","number","",'step="0.01"')+fld("l_date","Data","date",iso(new Date()))+'</div>'+
+    '<div class="f2">'+fld("l_amt","Importo ‚Ç¨","number","",'step="0.01"')+fld("l_date","Data","date",iso(new Date()))+'</div>'+
     fld("l_desc","Descrizione","text","","placeholder=\"es. anticipo impresa\"");
   modal({title:"Nuova partita tra soci",body:b,ok:"Registra",onOk:async(body)=>{
     const from=$("#l_from",body).value,to=$("#l_to",body).value,amt=N($("#l_amt",body).value);
@@ -1986,12 +2004,12 @@ function viewSales(sc,p){
   });
   const page=el("div","page");
   page.innerHTML='<div class="page-head"><div><h1>Sales / Exit</h1>'+
-    '<div class="sub">Previsioni di vendita, fee agenzia e fiscalità '+(soc?"societaria":"su persone fisiche")+'</div></div><div class="sp"></div>'+
-    (canWrite()?'<div class="row"><button class="btn" id="s_units">Unità in vendita</button>'+
+    '<div class="sub">Previsioni di vendita, fee agenzia e fiscalit√† '+(soc?"societaria":"su persone fisiche")+'</div></div><div class="sp"></div>'+
+    (canWrite()?'<div class="row"><button class="btn" id="s_units">Unit√† in vendita</button>'+
       '<button class="btn" id="s_fee">Accordo agenzia</button>'+
-      '<button class="btn" id="s_tax">Fiscalità</button></div>':'')+'</div>'+
+      '<button class="btn" id="s_tax">Fiscalit√†</button></div>':'')+'</div>'+
     '<div class="grid g4" style="margin-bottom:14px">'+
-      kpi("Ricavo previsto",eur0(m.rev),IC.tag,units.length?units.length+" unità":"prezzo unico","acc")+
+      kpi("Ricavo previsto",eur0(m.rev),IC.tag,units.length?units.length+" unit√†":"prezzo unico","acc")+
       kpi("Margine lordo",eur0(m.gross),IC.trend,"ROI lordo "+pct(m.roiG),m.gross>=0?"good":"bad")+
       kpi("Imposte stimate",eur0(m.taxes),IC.scale,(soc?"IRES+IRAP ":"Plusvalenza ")+pct(m.taxRate,1),"info")+
       kpi("Margine netto",eur0(m.net),IC.euro,"ROI netto "+pct(m.roiN),m.net>=0?"good":"bad")+
@@ -1999,13 +2017,13 @@ function viewSales(sc,p){
     '<div class="grid g21" style="margin-bottom:14px">'+
       '<div class="card"><div class="card-h"><h3>Conto economico dell\'operazione</h3></div><div class="card-p">'+
         '<div class="split"><span class="l">Ricavo di vendita</span><span class="v">'+eur0(m.rev)+'</span></div>'+
-        '<div class="split"><span class="l">Prezzo di acquisto</span><span class="v">−'+eur0(m.buy)+'</span></div>'+
-        '<div class="split"><span class="l">Costi di acquisto (notaio, imposte)</span><span class="v">−'+eur0(m.buyCosts)+'</span></div>'+
-        '<div class="split"><span class="l">Lavori (budget '+eur0(m.works)+' · pagato '+eur0(m.paid)+')</span><span class="v">−'+eur0(m.works)+'</span></div>'+
-        '<div class="split"><span class="l">Altri costi</span><span class="v">−'+eur0(m.other)+'</span></div>'+
-        '<div class="split"><span class="l">Fee agenzia'+((p.fees&&p.fees.vat)?" (IVA incl.)":"")+'</span><span class="v">−'+eur0(m.fee)+'</span></div>'+
+        '<div class="split"><span class="l">Prezzo di acquisto</span><span class="v">‚àí'+eur0(m.buy)+'</span></div>'+
+        '<div class="split"><span class="l">Costi di acquisto (notaio, imposte)</span><span class="v">‚àí'+eur0(m.buyCosts)+'</span></div>'+
+        '<div class="split"><span class="l">Lavori (budget '+eur0(m.works)+' ¬∑ pagato '+eur0(m.paid)+')</span><span class="v">‚àí'+eur0(m.works)+'</span></div>'+
+        '<div class="split"><span class="l">Altri costi</span><span class="v">‚àí'+eur0(m.other)+'</span></div>'+
+        '<div class="split"><span class="l">Fee agenzia'+((p.fees&&p.fees.vat)?" (IVA incl.)":"")+'</span><span class="v">‚àí'+eur0(m.fee)+'</span></div>'+
         '<div class="split tot"><span class="l">Margine lordo</span><span class="v" style="color:'+(m.gross>=0?"var(--good)":"var(--bad)")+'">'+eur0(m.gross)+'</span></div>'+
-        '<div class="split"><span class="l">'+(soc?"IRES + IRAP":"Imposta su plusvalenza")+' · '+pct(m.taxRate,1)+'</span><span class="v" style="color:var(--bad)">−'+eur0(m.taxes)+'</span></div>'+
+        '<div class="split"><span class="l">'+(soc?"IRES + IRAP":"Imposta su plusvalenza")+' ¬∑ '+pct(m.taxRate,1)+'</span><span class="v" style="color:var(--bad)">‚àí'+eur0(m.taxes)+'</span></div>'+
         '<div class="split tot"><span class="l">Margine netto</span><span class="v" style="color:'+(m.net>=0?"var(--good)":"var(--bad)")+'">'+eur0(m.net)+'</span></div>'+
         '<div class="row" style="gap:8px;margin-top:16px">'+
           '<div style="flex:1;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
@@ -2015,7 +2033,7 @@ function viewSales(sc,p){
             '<div class="eyebrow">ROI netto su capitale</div><div style="font-size:21px;font-weight:800;letter-spacing:-.035em;color:'+(m.roiN>=0?"var(--good)":"var(--bad)")+'">'+pct(m.roiN)+'</div>'+
             '<div class="d dim" style="font-size:11px">ROI su costi '+pct(m.roiCost)+'</div></div>'+
         '</div></div></div>'+
-      '<div class="card"><div class="card-h"><h3>Sensitività prezzo</h3></div><div class="tbl-wrap">'+
+      '<div class="card"><div class="card-h"><h3>Sensitivit√† prezzo</h3></div><div class="tbl-wrap">'+
         '<table class="tbl"><thead><tr><th>Scenario</th><th class="r">Ricavo</th><th class="r">Netto</th><th class="r">ROI netto</th></tr></thead><tbody>'+
         scen.map(s=>'<tr'+(s.d===0?' style="background:var(--surface-2)"':'')+'><td>'+
           (s.d===0?'<b>Base</b>':(s.d>0?"+":"")+s.d+"%")+'</td>'+
@@ -2030,15 +2048,15 @@ function viewSales(sc,p){
         '</div></div>'+
     '</div>'+
     '<div class="grid g2">'+
-      '<div class="card"><div class="card-h"><h3>Unità in vendita</h3><div class="sp"></div>'+
+      '<div class="card"><div class="card-h"><h3>Unit√† in vendita</h3><div class="sp"></div>'+
         '<span class="chip">'+(units.length||"prezzo unico")+'</span></div><div class="tbl-wrap">'+
-        (units.length?'<table class="tbl"><thead><tr><th>Unità</th><th class="r">m²</th><th class="r">€/m²</th><th class="r">Prezzo</th><th>Stato</th></tr></thead><tbody>'+
-          units.map(u=>'<tr><td><b>'+esc(u.name)+'</b></td><td class="r">'+(N(u.sqm)||"—")+'</td>'+
-          '<td class="r">'+(N(u.sqm)?eur0(N(u.price)/N(u.sqm)):"—")+'</td><td class="r" style="font-weight:700">'+eur0(u.price)+'</td>'+
+        (units.length?'<table class="tbl"><thead><tr><th>Unit√†</th><th class="r">m¬≤</th><th class="r">‚Ç¨/m¬≤</th><th class="r">Prezzo</th><th>Stato</th></tr></thead><tbody>'+
+          units.map(u=>'<tr><td><b>'+esc(u.name)+'</b></td><td class="r">'+(N(u.sqm)||"‚Äî")+'</td>'+
+          '<td class="r">'+(N(u.sqm)?eur0(N(u.price)/N(u.sqm)):"‚Äî")+'</td><td class="r" style="font-weight:700">'+eur0(u.price)+'</td>'+
           '<td><span class="chip '+(u.status==="venduta"?"good":u.status==="proposta"?"warn":"")+'">'+
           esc(u.status==="venduta"?"Venduta":u.status==="proposta"?"Proposta":"Disponibile")+'</span></td></tr>').join("")+
           '</tbody></table>'
-         :'<div class="empty">Nessuna unità: si usa il prezzo di vendita unico ('+eur0(N(p.salePrice))+').</div>')+
+         :'<div class="empty">Nessuna unit√†: si usa il prezzo di vendita unico ('+eur0(N(p.salePrice))+').</div>')+
         '</div></div>'+
       '<div class="card"><div class="card-h"><h3>Accordo con l\'agenzia</h3></div><div class="card-p">'+feeSummary(p,m)+'</div></div>'+
     '</div>';
@@ -2049,20 +2067,20 @@ function viewSales(sc,p){
   const t=$("#s_tax",page); if(t) t.addEventListener("click",()=>taxModal(p));
 }
 function breakEven(p,m){
-  // find price where net margin = 0 (taxes on positive margin only → break-even is gross=0)
+  // find price where net margin = 0 (taxes on positive margin only ‚Üí break-even is gross=0)
   let lo=0,hi=Math.max(1e5,m.plannedCost*3);
   for(let i=0;i<60;i++){ const mid=(lo+hi)/2; const g=mid-m.plannedCost-feeOn(mid,p); if(g<0) lo=mid; else hi=mid }
   return hi;
 }
 function feeSummary(p,m){
   const f=p.fees||{};
-  let h='<div class="split"><span class="l">Modalità</span><span class="v">'+(f.mode==="flat"?"Percentuale fissa":"Fee a scaglioni")+'</span></div>';
+  let h='<div class="split"><span class="l">Modalit√†</span><span class="v">'+(f.mode==="flat"?"Percentuale fissa":"Fee a scaglioni")+'</span></div>';
   if(f.mode==="flat"||!(f.tiers||[]).length){
     h+='<div class="split"><span class="l">Percentuale</span><span class="v">'+pct(N(f.flatPct),2)+'</span></div>';
   }else{
     h+='<div style="margin:10px 0 4px" class="eyebrow">Scaglioni</div><table class="mini-tbl" style="width:100%">'+
       (f.tiers||[]).slice().sort((a,b)=>N(a.from)-N(b.from)).map(t=>'<tr><td class="dim">'+
-        VE(t.from)+' → '+(t.to===""||t.to==null?"oltre":VE(t.to))+'</td><td class="r" style="font-weight:700">'+pct(N(t.pct),2)+'</td></tr>').join("")+
+        VE(t.from)+' ‚Üí '+(t.to===""||t.to==null?"oltre":VE(t.to))+'</td><td class="r" style="font-weight:700">'+pct(N(t.pct),2)+'</td></tr>').join("")+
       '</table>';
   }
   if(N(f.fixed)) h+='<div class="split"><span class="l">Fee fissa</span><span class="v">'+VE(f.fixed)+'</span></div>';
@@ -2078,9 +2096,9 @@ function feeModal(p){
   const b=el("div");
   const draw=()=>{
     b.innerHTML='<div class="f2">'+fld("a_ag","Agenzia","text",f.agency)+
-      sel("a_mode","Modalità fee",f.mode,[["tiers","Fee a scaglioni"],["flat","Percentuale fissa"]])+'</div>'+
+      sel("a_mode","Modalit√† fee",f.mode,[["tiers","Fee a scaglioni"],["flat","Percentuale fissa"]])+'</div>'+
       '<div class="f3">'+fld("a_flat","Percentuale fissa %","number",f.flatPct,'step="0.01"')+
-      fld("a_fix","Fee fissa €","number",f.fixed,'step="0.01"')+
+      fld("a_fix","Fee fissa ‚Ç¨","number",f.fixed,'step="0.01"')+
       '<div class="field"><label>IVA</label><div class="perm" style="height:38px"><input type="checkbox" id="a_vat"'+(f.vat?" checked":"")+'>'+
       '<span class="t">Applica IVA 22%</span></div></div></div>'+
       '<div class="eyebrow" style="margin:16px 0 8px">Scaglioni (applicati per fasce sul prezzo di vendita)</div>'+
@@ -2121,28 +2139,28 @@ function feeModal(p){
 function taxModal(p){
   const t=Object.assign({ires:24,irap:3.9,pf:26},p.taxes||{});
   const b=el("div");
-  b.innerHTML='<p class="muted" style="font-size:12.5px;margin-bottom:14px">Il soggetto dell\'operazione è '+
-    '<b>'+(p.entity==="societa"?"una società":"persone fisiche")+'</b>: si applicano le aliquote della colonna corrispondente. '+
+  b.innerHTML='<p class="muted" style="font-size:12.5px;margin-bottom:14px">Il soggetto dell\'operazione √® '+
+    '<b>'+(p.entity==="societa"?"una societ√†":"persone fisiche")+'</b>: si applicano le aliquote della colonna corrispondente. '+
     'Modificale in base alla tua situazione fiscale effettiva.</p>'+
-    '<div class="eyebrow" style="margin-bottom:8px">Società</div>'+
+    '<div class="eyebrow" style="margin-bottom:8px">Societ√†</div>'+
     '<div class="f2">'+fld("t_ires","IRES %","number",t.ires,'step="0.1"')+fld("t_irap","IRAP %","number",t.irap,'step="0.1"')+'</div>'+
     '<div class="eyebrow" style="margin:14px 0 8px">Persone fisiche</div>'+
     fld("t_pf","Imposta su plusvalenza %","number",t.pf,'step="0.1"')+
     '<p class="dim" style="font-size:11.5px;margin-top:8px">Le aliquote sono indicative e non costituiscono consulenza fiscale: '+
-    'verifica sempre con il tuo commercialista (regime, detraibilità, imposta sostitutiva).</p>';
-  modal({title:"Fiscalità",body:b,ok:"Salva",onOk:async(body)=>{
+    'verifica sempre con il tuo commercialista (regime, detraibilit√†, imposta sostitutiva).</p>';
+  modal({title:"Fiscalit√†",body:b,ok:"Salva",onOk:async(body)=>{
     const data={ires:N($("#t_ires",body).value),irap:N($("#t_irap",body).value),pf:N($("#t_pf",body).value)};
     p.taxes=data; if(!await patch("projects/"+p.id,{taxes:data})) return false;
-    render(); toast("Fiscalità aggiornata"); return true;
+    render(); toast("Fiscalit√† aggiornata"); return true;
   }});
 }
 function unitsModal(p){
   const units=(p.units||[]).map(u=>({name:u.name,sqm:N(u.sqm),price:N(u.price),status:u.status||"disp"}));
   const b=el("div");
   const draw=()=>{
-    b.innerHTML='<p class="muted" style="font-size:12.5px;margin-bottom:12px">Se inserisci delle unità, il ricavo previsto è la loro somma '+
+    b.innerHTML='<p class="muted" style="font-size:12.5px;margin-bottom:12px">Se inserisci delle unit√†, il ricavo previsto √® la loro somma '+
       'e sostituisce il prezzo di vendita unico.</p><div id="ul"></div>'+
-      '<button class="btn btn-sm" id="addu" style="margin-top:8px">'+IC.plus+'Aggiungi unità</button>'+
+      '<button class="btn btn-sm" id="addu" style="margin-top:8px">'+IC.plus+'Aggiungi unit√†</button>'+
       '<div class="row" style="justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-2)">'+
       '<span class="eyebrow">Totale</span><span class="mono" style="font-weight:700">'+
       eur0(units.reduce((s,u)=>s+N(u.price),0))+'</span></div>';
@@ -2150,7 +2168,7 @@ function unitsModal(p){
     units.forEach((u,i)=>{
       const row=el("div","row"); row.style.cssText="gap:7px;margin-bottom:7px;flex-wrap:nowrap";
       row.innerHTML='<input class="inp" value="'+esc(u.name)+'" placeholder="es. Appartamento A" style="flex:1.4;min-width:0">'+
-        '<input class="inp num" type="number" value="'+(u.sqm||"")+'" placeholder="m²" style="width:74px">'+
+        '<input class="inp num" type="number" value="'+(u.sqm||"")+'" placeholder="m¬≤" style="width:74px">'+
         '<input class="inp num" type="number" value="'+(u.price||"")+'" placeholder="prezzo" style="flex:1;min-width:0" step="1000">'+
         '<select class="inp" style="width:120px"><option value="disp">Disponibile</option><option value="proposta">Proposta</option><option value="venduta">Venduta</option></select>'+
         '<button class="btn btn-xs btn-danger">'+IC.trash+'</button>';
@@ -2165,10 +2183,10 @@ function unitsModal(p){
     $("#addu",b).addEventListener("click",()=>{units.push({name:"",sqm:0,price:0,status:"disp"});draw()});
   };
   draw();
-  modal({title:"Unità in vendita",wide:true,body:b,ok:"Salva unità",onOk:async()=>{
+  modal({title:"Unit√† in vendita",wide:true,body:b,ok:"Salva unit√†",onOk:async()=>{
     const cl=units.filter(u=>String(u.name||"").trim()||N(u.price));
     p.units=cl; if(!await patch("projects/"+p.id,{units:cl})) return false;
-    render(); toast("Unità aggiornate"); return true;
+    render(); toast("Unit√† aggiornate"); return true;
   }});
 }
 
@@ -2182,7 +2200,7 @@ function viewDocs(sc,p){
   const inF=S.files.filter(f=>f.folder===S.folder);
   const page=el("div","page");
   page.innerHTML='<div class="page-head"><div><h1>Documenti</h1>'+
-    '<div class="sub">'+S.files.length+' file archiviati · PDF, immagini, Excel, CSV</div></div><div class="sp"></div>'+
+    '<div class="sub">'+S.files.length+' file archiviati ¬∑ PDF, immagini, Excel, CSV</div></div><div class="sp"></div>'+
     (canWrite()?'<div class="row"><button class="btn" id="d_nf">'+IC.plus+'Cartella</button>'+
       '<button class="btn btn-pri" id="d_up">'+IC.up+'Carica file</button></div>':'')+'</div>'+
     '<div class="fold"><div class="fold-side" id="fs"></div><div class="fold-main">'+
@@ -2232,14 +2250,14 @@ function fileCard(f){
   c.innerHTML='<div class="thumb">'+(isImg?'<img loading="lazy" src="/_blob/'+esc(f.assetId)+'" alt="'+esc(f.name)+'">'
       :'<span class="ext">'+esc(ex.toUpperCase()||"FILE")+'</span>')+'</div>'+
     '<div class="meta"><div class="n" title="'+esc(f.name)+'">'+esc(f.name)+'</div>'+
-    '<div class="s">'+sizeStr(f.size)+' · '+fmtD((f.at||"").slice(0,10))+'</div></div>'+
+    '<div class="s">'+sizeStr(f.size)+' ¬∑ '+fmtD((f.at||"").slice(0,10))+'</div></div>'+
     '<div class="fa"><button class="btn btn-xs" data-dl>'+IC.dl+'Scarica</button>'+
     (f.assetId&&(isImg||ex==="pdf")?'<button class="btn btn-xs" data-open>Apri</button>':'')+
     (canWrite()?'<button class="btn btn-xs btn-danger" data-rm title="Elimina">'+IC.trash+'</button>':'')+'</div>';
   $("[data-dl]",c).addEventListener("click",()=>downloadFile(f));
   const op=$("[data-open]",c); if(op) op.addEventListener("click",()=>previewFile(f));
   const rm=$("[data-rm]",c);
-  if(rm) rm.addEventListener("click",()=>confirmBox("Elimina file","Eliminare «"+f.name+"»?","Elimina",async()=>{
+  if(rm) rm.addEventListener("click",()=>confirmBox("Elimina file","Eliminare ¬´"+f.name+"¬ª?","Elimina",async()=>{
     if(f.assetId&&S.assets){ try{ await S.assets.delete(f.assetId) }catch(e){} }
     if(f.chunks){ for(let i=0;i<f.chunks;i++) await del(ppath("blobs/"+f.id+"_"+i)) }
     await del(ppath("files/"+f.id)); await loadProjectData(S.pid); render(); toast("File eliminato")}));
@@ -2252,7 +2270,7 @@ async function uploadFiles(list,p){
     const ex=extOf(file.name);
     const type=ASSET_TYPES[ex];
     const id=uid("fl");
-    toast("Carico "+file.name+"…");
+    toast("Carico "+file.name+"‚Ä¶");
     try{
       if(type&&S.assets){
         const r=await S.assets.upload(file,{type:type});
@@ -2295,7 +2313,7 @@ function previewFile(f){
   const body=IMG_EXT.indexOf(ex)>=0
     ?'<img src="'+esc(src)+'" alt="'+esc(f.name)+'" style="width:100%;border-radius:10px;display:block">'
     :'<div style="height:66vh;border-radius:10px;overflow:hidden;border:1px solid var(--line)"><object data="'+esc(src)+
-      '" type="application/pdf" width="100%" height="100%"><p class="muted" style="padding:20px">Anteprima non disponibile. Usa «Scarica».</p></object></div>';
+      '" type="application/pdf" width="100%" height="100%"><p class="muted" style="padding:20px">Anteprima non disponibile. Usa ¬´Scarica¬ª.</p></object></div>';
   modal({title:f.name,wide:true,body:body,ok:null,cancel:"Chiudi"});
 }
 
@@ -2304,7 +2322,7 @@ function viewProfiles(sc){
   if(!isMaster()){ sc.innerHTML='<div class="page"><div class="card"><div class="empty">Sezione riservata all\'amministratore.</div></div></div>'; return }
   const page=el("div","page");
   page.innerHTML='<div class="page-head"><div><h1>Gestione profili</h1>'+
-    '<div class="sub">Crea gli accessi e decidi cosa può vedere ogni utente</div></div><div class="sp"></div>'+
+    '<div class="sub">Crea gli accessi e decidi cosa pu√≤ vedere ogni utente</div></div><div class="sp"></div>'+
     '<button class="btn btn-pri" id="a_new">'+IC.plus+'Nuovo profilo</button></div>'+
     '<div class="card"><div class="card-h"><h3>Utenti</h3><div class="sp"></div><span class="chip">'+S.accounts.length+'</span></div>'+
     '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Utente</th><th>Email</th><th>Ruolo</th>'+
@@ -2312,7 +2330,7 @@ function viewProfiles(sc){
     '<div class="card" style="margin-top:14px"><div class="card-p">'+
       '<div class="eyebrow" style="margin-bottom:8px">Come funzionano i permessi</div>'+
       '<p class="muted" style="font-size:12.5px">L\'amministratore vede e modifica tutto. Per ogni altro profilo scegli le sezioni '+
-      'accessibili, i progetti visibili, se può creare nuovi progetti e se può scrivere (registrare pagamenti, modificare il cronoprogramma) '+
+      'accessibili, i progetti visibili, se pu√≤ creare nuovi progetti e se pu√≤ scrivere (registrare pagamenti, modificare il cronoprogramma) '+
       'oppure solo consultare.</p></div></div>';
   sc.innerHTML=""; sc.appendChild(page);
   const tb=$("#ab",page);
@@ -2322,7 +2340,7 @@ function viewProfiles(sc){
     const tr=el("tr");
     tr.innerHTML='<td><div class="row" style="gap:9px;flex-wrap:nowrap"><span class="av" style="width:26px;height:26px;font-size:10.5px'+
       (a.role==="master"?";background:var(--primary);color:var(--primary-ink)":"")+'">'+esc(initials(a.name||a.email))+'</span>'+
-      '<span><b>'+esc(a.name||"—")+'</b>'+(a.active===false?' <span class="chip bad">disattivo</span>':'')+'</span></div></td>'+
+      '<span><b>'+esc(a.name||"‚Äî")+'</b>'+(a.active===false?' <span class="chip bad">disattivo</span>':'')+'</span></div></td>'+
       '<td class="muted mono" style="font-size:12px">'+esc(a.email)+'</td>'+
       '<td>'+(a.role==="master"?'<span class="chip acc">Amministratore</span>':'<span class="chip">'+esc(a.roleLabel||"Utente")+'</span>')+'</td>'+
       '<td class="mono" style="font-size:12px">'+esc(secs)+'</td><td class="mono" style="font-size:12px">'+esc(String(prj))+'</td>'+
@@ -2336,7 +2354,7 @@ function viewProfiles(sc){
   $$("[data-ae]",page).forEach(b=>b.addEventListener("click",()=>accountModal(S.accounts.find(x=>x.id===b.dataset.ae))));
   $$("[data-ad]",page).forEach(b=>b.addEventListener("click",()=>{
     const a=S.accounts.find(x=>x.id===b.dataset.ad); if(!a)return;
-    confirmBox("Elimina profilo","Eliminare l'accesso di «"+(a.name||a.email)+"»?","Elimina",async()=>{
+    confirmBox("Elimina profilo","Eliminare l'accesso di ¬´"+(a.name||a.email)+"¬ª?","Elimina",async()=>{
       await del("accounts/"+a.id); await loadAccounts(); render(); toast("Profilo eliminato")})}));
 }
 function accountModal(a){
@@ -2357,8 +2375,8 @@ function accountModal(a){
          '<span class="t">'+esc(s.n)+'</span></label>').join("")+'</div>'+
        '<div class="eyebrow" style="margin:16px 0 8px">Poteri</div>'+
        '<div class="grid g2" style="gap:8px">'+
-         '<label class="perm"><input type="checkbox" id="u_cc"'+(perms.canCreate?" checked":"")+'><span class="t">Può creare progetti</span></label>'+
-         '<label class="perm"><input type="checkbox" id="u_cw"'+(perms.canWrite!==false?" checked":"")+'><span class="t">Può modificare i dati (non solo leggere)</span></label>'+
+         '<label class="perm"><input type="checkbox" id="u_cc"'+(perms.canCreate?" checked":"")+'><span class="t">Pu√≤ creare progetti</span></label>'+
+         '<label class="perm"><input type="checkbox" id="u_cw"'+(perms.canWrite!==false?" checked":"")+'><span class="t">Pu√≤ modificare i dati (non solo leggere)</span></label>'+
        '</div>'+
        '<div class="eyebrow" style="margin:16px 0 8px">Progetti visibili</div>'+
        '<label class="perm" style="margin-bottom:8px"><input type="checkbox" id="u_all"'+(perms.projects==="all"?" checked":"")+'>'+
@@ -2379,7 +2397,7 @@ function accountModal(a){
       const pass=$("#u_pass",body).value;
       if(!isM&&!email){toast("Inserisci l'email",true);return false}
       if(isNew&&(!pass||pass.length<6)){toast("La password deve avere almeno 6 caratteri",true);return false}
-      if(isNew&&S.accounts.some(x=>String(x.email||"").toLowerCase()===email)){toast("Email già utilizzata",true);return false}
+      if(isNew&&S.accounts.some(x=>String(x.email||"").toLowerCase()===email)){toast("Email gi√† utilizzata",true);return false}
       const data={name:$("#u_name",body).value.trim(),roleLabel:$("#u_role",body).value.trim()||"Utente"};
       if(!isM){
         data.email=email; data.active=$("#u_act",body)?$("#u_act",body).checked:true;
@@ -2401,7 +2419,7 @@ function accountModal(a){
 
 
 /* ======================================================================
-   v2 — permessi granulari, soci da utenti, gantt configurabile,
+   v2 ‚Äî permessi granulari, soci da utenti, gantt configurabile,
         piano pagamenti, ottimizzazione mobile
    ====================================================================== */
 S.plan=[];
@@ -2416,8 +2434,8 @@ const PERM_FIELDS=[
     ["f_req","Richieste di pagamento"],["f_pay","Pagamenti effettuati"],["f_plan","Piano pagamenti (timeline)"],
     ["f_ledger","Partite tra soci"],["f_quotas","Quote e saldi soci"],["f_budget","Budget e residuo"]]},
   {g:"Sales / Exit",sec:"sales",items:[
-    ["s_pl","Conto economico"],["s_roi","ROI e imposte"],["s_sens","Sensitività e pareggio"],
-    ["s_units","Unità in vendita"],["s_fee","Accordo agenzia"]]},
+    ["s_pl","Conto economico"],["s_roi","ROI e imposte"],["s_sens","Sensitivit√† e pareggio"],
+    ["s_units","Unit√† in vendita"],["s_fee","Accordo agenzia"]]},
   {g:"Cantiere",sec:"gantt",items:[
     ["g_dates","Periodo del cronoprogramma"],["g_resp","Imprese e responsabili"],["g_export","Export CSV"]]}
 ];
@@ -2494,6 +2512,7 @@ function sideHTML(){
       (isMaster()?nv("profiles",IC.shield,"Gestione profili",S.accounts.length,S.view==="profiles"):"")+
     '</nav>'+
     '<div class="side-foot">'+
+      '<div class="side-ver">'+APP_VER+'</div>'+
       '<div class="side-user"><div class="av">'+esc(initials(S.me.name||S.me.email))+'</div>'+
       '<div style="min-width:0;flex:1"><div class="nm">'+esc(S.me.name||S.me.email)+'</div>'+
       '<div class="rl">'+(isMaster()?"Amministratore":esc(S.me.roleLabel||"Utente"))+'</div></div>'+
@@ -2542,7 +2561,7 @@ function partnerEditor(host,partners,onChange){
     partners.forEach((x,i)=>{
       const row=el("div","prow");
       const others=S.accounts.filter(a=>a.role!=="master"||true);
-      const opts=[['','— socio esterno —']].concat(others.map(a=>[a.id,(a.name||a.email)+(a.roleLabel?" · "+a.roleLabel:"")]));
+      const opts=[['','‚Äî socio esterno ‚Äî']].concat(others.map(a=>[a.id,(a.name||a.email)+(a.roleLabel?" ¬∑ "+a.roleLabel:"")]));
       row.innerHTML='<div style="display:flex;gap:6px;min-width:0">'+
           '<select class="inp" style="flex:1;min-width:0">'+opts.map(o=>'<option value="'+esc(o[0])+'"'+
             (String(o[0])===String(x.accountId||"")?" selected":"")+'>'+esc(o[1])+'</option>').join("")+'</select>'+
@@ -2589,30 +2608,30 @@ function projectModal(p){
   b.innerHTML=
     '<div class="pgrp"><div class="h"><span class="eyebrow">Anagrafica</span></div>'+
       fld("p_name","Nome operazione","text",p?p.name:"","placeholder=\"es. Corso Vittorio\"")+
-      '<div class="f2">'+fld("p_addr","Indirizzo","text",p?p.address:"")+fld("p_city","Città","text",p?p.city:"Torino")+'</div>'+
+      '<div class="f2">'+fld("p_addr","Indirizzo","text",p?p.address:"")+fld("p_city","Citt√†","text",p?p.city:"Torino")+'</div>'+
       '<div class="f3">'+
-        sel("p_ent","Tipo di soggetto",p?p.entity:"societa",[["societa","Società"],["fisiche","Persone fisiche"]])+
+        sel("p_ent","Tipo di soggetto",p?p.entity:"societa",[["societa","Societ√†"],["fisiche","Persone fisiche"]])+
         sel("p_st","Stato",p?p.status:"valutazione",STATI)+
-        fld("p_sqm","Superficie m²","number",p?p.sqm:"")+'</div></div>'+
+        fld("p_sqm","Superficie m¬≤","number",p?p.sqm:"")+'</div></div>'+
     '<div class="pgrp"><div class="h"><span class="eyebrow">Economics</span></div>'+
       '<div class="f3">'+
-        fld("p_buy","Prezzo di acquisto €","number",p?p.purchasePrice:"")+
-        fld("p_bc","Costi acquisto (notaio, imposte) €","number",p?p.purchaseCosts:"")+
+        fld("p_buy","Prezzo di acquisto ‚Ç¨","number",p?p.purchasePrice:"")+
+        fld("p_bc","Costi acquisto (notaio, imposte) ‚Ç¨","number",p?p.purchaseCosts:"")+
         '<div class="field"><label>Capitale proprio (calcolato)</label>'+
-          '<div class="calcbox" id="p_capbox">—</div></div>'+'</div>'+
+          '<div class="calcbox" id="p_capbox">‚Äî</div></div>'+'</div>'+
       '<div class="f3">'+
-        fld("p_wk","Budget lavori €","number",p?p.budgetWorks:"")+
-        fld("p_dc","Costi di progetto €","number",p?p.designCosts:"",'placeholder="progettista, DL, pratiche"')+
-        fld("p_oc","Altri costi €","number",p?p.otherCosts:"")+'</div>'+
+        fld("p_wk","Budget lavori ‚Ç¨","number",p?p.budgetWorks:"")+
+        fld("p_dc","Costi di progetto ‚Ç¨","number",p?p.designCosts:"",'placeholder="progettista, DL, pratiche"')+
+        fld("p_oc","Altri costi ‚Ç¨","number",p?p.otherCosts:"")+'</div>'+
       '<div class="f3">'+
-        fld("p_sale","Prezzo vendita previsto €","number",p?p.salePrice:"",
+        fld("p_sale","Prezzo vendita previsto ‚Ç¨","number",p?p.salePrice:"",
           ((p&&p.units&&p.units.length)?'disabled':''))+
         fld("p_fee","Fee agenzia %","number",p&&p.fees?N(p.fees.flatPct):3,'step="0.01" min="0"')+
-        fld("p_feef","Fee fissa agenzia €","number",p&&p.fees?N(p.fees.fixed):0,'step="100" min="0"')+'</div>'+
+        fld("p_feef","Fee fissa agenzia ‚Ç¨","number",p&&p.fees?N(p.fees.fixed):0,'step="100" min="0"')+'</div>'+
       ((p&&p.units&&p.units.length)?'<div class="notice" style="margin-bottom:10px">'+IC.tag+
-        '<span style="flex:1">Il ricavo di questa operazione è la somma delle '+p.units.length+
-        ' unità in vendita ('+eurN(revenueOf(p))+'), quindi il prezzo unico qui sopra è disattivato.</span>'+
-        '<button class="btn btn-sm" type="button" id="p_gounits">Modifica le unità</button></div>':'')+
+        '<span style="flex:1">Il ricavo di questa operazione √® la somma delle '+p.units.length+
+        ' unit√† in vendita ('+eurN(revenueOf(p))+'), quindi il prezzo unico qui sopra √® disattivato.</span>'+
+        '<button class="btn btn-sm" type="button" id="p_gounits">Modifica le unit√†</button></div>':'')+
       '<label class="perm" style="margin-bottom:10px">'+
         '<input type="checkbox" id="p_feev"'+((!p||!p.fees||p.fees.vat!==false)?" checked":"")+'>'+
         '<span class="t">Applica IVA 22% alla fee dell\'agenzia</span></label>'+
@@ -2623,21 +2642,21 @@ function projectModal(p){
       '<p class="dim" style="font-size:11.5px">Queste due date definiscono l\'asse temporale del Gantt di cantiere e del piano pagamenti.</p></div>'+
     '<div class="pgrp"><div class="h"><span class="eyebrow">IVA dell\'operazione</span></div>'+
       '<div class="f2">'+sel("p_iva","Aliquota IVA",p?(N(p.ivaRate)||22):22,
-        [["4","4% — agevolata / prima casa"],["10","10% — ristrutturazione, immobile non di lusso"],["22","22% — ordinaria"]])+
+        [["4","4% ‚Äî agevolata / prima casa"],["10","10% ‚Äî ristrutturazione, immobile non di lusso"],["22","22% ‚Äî ordinaria"]])+
         '<div class="field"><label>Acquisto</label><label class="perm" style="height:40px">'+
         '<input type="checkbox" id="p_ivab"'+((p&&p.ivaOnPurchase)?" checked":"")+'>'+
         '<span class="t">Acquisto soggetto a IVA</span></label></div></div>'+
-      '<p class="dim" style="font-size:11.5px">I dati restano <b>imponibili</b>. Dentro l\'operazione lo switch «+ IVA» in alto '+
+      '<p class="dim" style="font-size:11.5px">I dati restano <b>imponibili</b>. Dentro l\'operazione lo switch ¬´+ IVA¬ª in alto '+
       'mostra tutti gli importi lordi con questa aliquota, e in Sales / Exit trovi il credito o debito IVA.</p></div>'+
     '<div class="pgrp"><div class="h"><span class="eyebrow">Finanziamento bancario</span>'+
       '<span class="dim" style="font-size:11px">rata alla francese</span></div>'+
       '<div class="f3">'+
-        fld("p_ln","Importo finanziato €","number",p?p.loanAmount:"",'step="1000"')+
+        fld("p_ln","Importo finanziato ‚Ç¨","number",p?p.loanAmount:"",'step="1000"')+
         fld("p_lr","Tasso nominale annuo %","number",p?p.loanRate:"",'step="0.01"')+
         fld("p_lm","Durata totale (mesi)","number",p?p.loanMonths:"",'step="1" min="1"')+'</div>'+
       '<div class="f3">'+
         fld("p_lg","Preammortamento (mesi)","number",p?(N(p.loanGraceMonths)||0):0,'step="1" min="0"')+
-        fld("p_lfs","Spese di istruttoria €","number",p?p.loanFeeSetup:"",'step="50"')+
+        fld("p_lfs","Spese di istruttoria ‚Ç¨","number",p?p.loanFeeSetup:"",'step="50"')+
         fld("p_lfe","Spese estinzione anticipata %","number",p?p.loanFeeEarly:"",'step="0.01"')+'</div>'+
       '<div class="f2">'+fld("p_lst","Data erogazione","date",p?(p.loanStart||""):"")+
         fld("p_lh","Mesi di utilizzo previsti","number",p?(N(p.loanHoldMonths)||""):"",
@@ -2650,7 +2669,7 @@ function projectModal(p){
       '<div id="p_parts"></div></div>'+
     fld("p_note","Note","textarea",p?p.notes:"")+
     (isNew?'<label class="perm" style="margin-top:6px"><input type="checkbox" id="p_tpl" checked>'+
-      '<span class="t">Carica il cronoprogramma tipo (acquisto → cantiere → vendita)</span></label>':'');
+      '<span class="t">Carica il cronoprogramma tipo (acquisto ‚Üí cantiere ‚Üí vendita)</span></label>':'');
   const gu=$("#p_gounits",b);
   if(gu) gu.addEventListener("click",()=>{ const m2=$(".mask"); if(m2) m2.remove();
     S.tab="sales"; render(); setTimeout(()=>unitsModal(P()||p),120) });
@@ -2681,7 +2700,7 @@ function projectModal(p){
         row("Progetto",dc)+row("Altri costi",oc)+row("Oneri finanziari",fin)+row("Fee agenzia",fee)+
       '</div>'+
       '<span class="cb-tot">Costi totali <b>'+eurN(tot)+'</b>'+
-        (deb?' − finanziamento <b>'+eurN(deb)+'</b>':' · nessun finanziamento')+'</span>';
+        (deb?' ‚àí finanziamento <b>'+eurN(deb)+'</b>':' ¬∑ nessun finanziamento')+'</span>';
   };
   ["p_buy","p_bc","p_wk","p_dc","p_oc","p_ln","p_lr","p_lm","p_lg","p_lfs","p_lfe","p_lh",
    "p_sale","p_fee","p_feef","p_feev","p_start","p_end"].forEach(id=>{
@@ -2697,7 +2716,7 @@ function projectModal(p){
     const f=feeOn(rev,tmp);
     host.innerHTML=tiers.length
       ? 'Questa operazione usa <b>fee a scaglioni</b> ('+tiers.length+' fasce, impostate in Sales / Exit): la percentuale qui vale solo come riserva. Fee su '+eurN(rev)+': <b>'+eurN(f)+'</b>.'
-      : 'Fee stimata su un ricavo di '+eurN(rev)+': <b>'+eurN(f)+'</b>'+($("#p_feev",b).checked?' (IVA inclusa)':'')+'. Per una fee a scaglioni usa Sales / Exit → Agenzia.';
+      : 'Fee stimata su un ricavo di '+eurN(rev)+': <b>'+eurN(f)+'</b>'+($("#p_feev",b).checked?' (IVA inclusa)':'')+'. Per una fee a scaglioni usa Sales / Exit ‚Üí Agenzia.';
   };
   ["p_fee","p_feef","p_feev","p_sale"].forEach(id=>{
     const e=$("#"+id,b); if(e){ e.addEventListener("input",fprev); e.addEventListener("change",fprev) }
@@ -2729,14 +2748,14 @@ function projectModal(p){
   modal({title:isNew?"Nuovo progetto":"Modifica progetto",wide:true,body:b,ok:isNew?"Crea progetto":"Salva",
     danger:isNew?null:"Elimina progetto",
     onDelete:(body,close)=>{
-      confirmBox("Elimina progetto","Eliminare definitivamente «"+p.name+
-        "» con cantiere, finanza, documenti e piano pagamenti? L'operazione non è reversibile.",
+      confirmBox("Elimina progetto","Eliminare definitivamente ¬´"+p.name+
+        "¬ª con cantiere, finanza, documenti e piano pagamenti? L'operazione non √® reversibile.",
         "Elimina definitivamente",async()=>{ close(); await deleteProject(p) });
       return false;
     },
     onOk:async(body)=>{
       const name=$("#p_name",body).value.trim();
-      if(!name){ toast("Il nome è obbligatorio",true); return false }
+      if(!name){ toast("Il nome √® obbligatorio",true); return false }
       const gs=$("#p_start",body).value, ge=$("#p_end",body).value;
       if(gs&&ge&&ge<gs){ toast("La fine precede l'inizio",true); return false }
       const cleanP=partners.filter(x=>String(x.name||"").trim()||x.accountId)
@@ -2816,7 +2835,7 @@ function accountModal(a){
     '<div class="f2">'+fld("u_name","Nome e cognome","text",a?a.name:"")+
       '<div class="field"><label for="u_role">Ruolo</label><select class="inp" id="u_role">'+
         ROLES.map(r=>'<option value="'+esc(r[0])+'"'+((a&&a.roleLabel===r[0])||(isNew&&r[0]==="SOCIO")?" selected":"")+'>'+esc(r[1])+'</option>').join("")+
-        '<option value="__altro"'+((a&&a.roleLabel&&!ROLES.some(r=>r[0]===a.roleLabel))?" selected":"")+'>Altro…</option>'+
+        '<option value="__altro"'+((a&&a.roleLabel&&!ROLES.some(r=>r[0]===a.roleLabel))?" selected":"")+'>Altro‚Ä¶</option>'+
       '</select></div>'+'</div>'+
     '<div class="field hide" id="u_rolecustom_w"><label for="u_rolecustom">Ruolo personalizzato</label>'+
       '<input class="inp" id="u_rolecustom" value="'+esc(a&&a.roleLabel&&!ROLES.some(r=>r[0]===a.roleLabel)?a.roleLabel:"")+'"></div>'+
@@ -2843,11 +2862,11 @@ function accountModal(a){
        '</div>'+
        '<div class="pgrp"><div class="h"><span class="eyebrow">Livello di accesso</span></div>'+
          '<div class="lvlrow" id="u_lvl">'+
-           '<button type="button" class="lvl" data-lvl="view"><b>Può solo visualizzare</b>'+
+           '<button type="button" class="lvl" data-lvl="view"><b>Pu√≤ solo visualizzare</b>'+
              '<span>consulta i dati, non modifica nulla</span></button>'+
-           '<button type="button" class="lvl" data-lvl="write"><b>Può modificare i dati</b>'+
+           '<button type="button" class="lvl" data-lvl="write"><b>Pu√≤ modificare i dati</b>'+
              '<span>registra pagamenti, cantiere, documenti</span></button>'+
-           '<button type="button" class="lvl" data-lvl="create"><b>Può creare progetti</b>'+
+           '<button type="button" class="lvl" data-lvl="create"><b>Pu√≤ creare progetti</b>'+
              '<span>modifica tutto e apre nuove operazioni</span></button>'+
          '</div></div>'+
        '<div class="pgrp"><div class="h"><span class="eyebrow">Cartelle documenti visibili</span></div>'+
@@ -2889,7 +2908,7 @@ function accountModal(a){
     $$("[data-fld]",b).forEach(i=>i.checked=pr.fields[i.dataset.fld]!==false);
     const dl=$("#u_dall",b); if(dl&&!dl.checked){dl.checked=true;dl.dispatchEvent(new Event("change"))}
     lvl=pr.canCreate?"create":(pr.canWrite===false?"view":"write"); drawLvl();
-    toast("Preset «"+roleSel.value+"» applicato");
+    toast("Preset ¬´"+roleSel.value+"¬ª applicato");
   };
   roleSel.addEventListener("change",()=>{ syncCustom(); if(!isM&&ROLE_PRESETS[roleSel.value]) applyPreset() });
   const pbtn=$("#u_preset",b); if(pbtn) pbtn.addEventListener("click",applyPreset);
@@ -2911,7 +2930,7 @@ function accountModal(a){
       const pass=$("#u_pass",body)?$("#u_pass",body).value:"";
       if(!isM&&!email){toast("Inserisci l'email",true);return false}
       if(isNew&&(!pass||pass.length<6)){toast("La password deve avere almeno 6 caratteri",true);return false}
-      if(isNew&&S.accounts.some(x=>String(x.email||"").toLowerCase()===email)){toast("Email già utilizzata",true);return false}
+      if(isNew&&S.accounts.some(x=>String(x.email||"").toLowerCase()===email)){toast("Email gi√† utilizzata",true);return false}
       const rl=$("#u_role",body).value==="__altro"?($("#u_rolecustom",body).value.trim()||"UTENTE"):$("#u_role",body).value;
       const data={name:$("#u_name",body).value.trim(),roleLabel:rl};
       if(!isM){
@@ -2930,7 +2949,7 @@ function accountModal(a){
         try{ newUid=await createAuthUser(email,pass) }
         catch(e){
           const c=e&&e.code||"";
-          toast(c==="auth/email-already-in-use"?"Questa email ha già un accesso: modifica il profilo esistente"
+          toast(c==="auth/email-already-in-use"?"Questa email ha gi√† un accesso: modifica il profilo esistente"
             :c==="auth/weak-password"?"Password troppo debole: almeno 6 caratteri"
             :"Creazione non riuscita: "+(e&&e.message||"errore"),true);
           return false;
@@ -2960,8 +2979,8 @@ function viewProfiles(sc){
       '<p class="muted" style="font-size:12.5px">Il pulsante <b>Backup</b> scarica tutto (profili, operazioni, cantiere, '+
       'finanza, documenti) in un file JSON reimportabile: fallo di tanto in tanto. '+
       'Scegliendo il ruolo (SOCIO, INVESTITORE, AGENTE IMMOBILIARE, FORNITORE, '+
-      'VISUALIZZATORE, BANCA) i permessi si impostano da soli su un profilo tipico — poi li correggi a mano voce per voce. '+
-      'Il livello «Dati visibili nel dettaglio» agisce sui singoli numeri: puoi far vedere l\'avanzamento del cantiere '+
+      'VISUALIZZATORE, BANCA) i permessi si impostano da soli su un profilo tipico ‚Äî poi li correggi a mano voce per voce. '+
+      'Il livello ¬´Dati visibili nel dettaglio¬ª agisce sui singoli numeri: puoi far vedere l\'avanzamento del cantiere '+
       'nascondendo capitale investito e margine.</p></div></div>';
   sc.innerHTML=""; sc.appendChild(page);
   const tb=$("#ab",page);
@@ -2975,7 +2994,7 @@ function viewProfiles(sc){
     const tr=el("tr");
     tr.innerHTML='<td class="hd"><div class="row" style="gap:9px;flex-wrap:nowrap"><span class="av" style="width:26px;height:26px;font-size:10.5px'+
       (a.role==="master"?";background:var(--primary);color:var(--primary-ink)":"")+'">'+esc(initials(a.name||a.email))+'</span>'+
-      '<span><b>'+esc(a.name||"—")+'</b>'+(a.active===false?' <span class="chip bad">disattivo</span>':'')+'</span></div></td>'+
+      '<span><b>'+esc(a.name||"‚Äî")+'</b>'+(a.active===false?' <span class="chip bad">disattivo</span>':'')+'</span></div></td>'+
       '<td data-l="Email" class="muted mono" style="font-size:12px">'+esc(a.email)+'</td>'+
       '<td data-l="Ruolo">'+(a.role==="master"?'<span class="chip acc">AMMINISTRATORE</span>':'<span class="chip">'+esc(a.roleLabel||"UTENTE")+'</span>')+'</td>'+
       '<td data-l="Sezioni" class="mono" style="font-size:12px">'+esc(secs)+'</td>'+
@@ -2994,14 +3013,14 @@ function viewProfiles(sc){
   $("#a_new",page).addEventListener("click",()=>accountModal(null));
   const ai=$("#a_imp",page); if(ai) ai.addEventListener("click",importModal);
   const ae=$("#a_exp",page); if(ae) ae.addEventListener("click",async()=>{
-    ae.disabled=true; const o=ae.innerHTML; ae.textContent="Preparo…";
+    ae.disabled=true; const o=ae.innerHTML; ae.textContent="Preparo‚Ä¶";
     try{ await exportBackup() }catch(e){ toast("Backup non riuscito",true) }
     ae.disabled=false; ae.innerHTML=o; });
   $$("[data-ae]",page).forEach(b=>b.addEventListener("click",()=>accountModal(S.accounts.find(x=>x.id===b.dataset.ae))));
   $$("[data-ad]",page).forEach(b=>b.addEventListener("click",()=>{
     const a=S.accounts.find(x=>x.id===b.dataset.ad); if(!a)return;
-    confirmBox("Revoca accesso","Revocare l'accesso di «"+(a.name||a.email)+
-      "»? Non potrà più entrare nella piattaforma.","Revoca accesso",async()=>{
+    confirmBox("Revoca accesso","Revocare l'accesso di ¬´"+(a.name||a.email)+
+      "¬ª? Non potr√† pi√π entrare nella piattaforma.","Revoca accesso",async()=>{
       await del("accounts/"+a.id); await loadAccounts(); render(); toast("Accesso revocato")})}));
 }
 
@@ -3018,11 +3037,11 @@ function viewControl(sc,p){
   let kpis="";
   if(canF("k_buy")) kpis+=kpi("Prezzo di acquisto",VE(m.buy),IC.home,"+ "+VE(m.buyCosts)+" costi d'acquisto","");
   if(canF("k_cap")) kpis+=kpi("Capitale proprio",VE(m.capital),IC.wallet,
-    m.debt?"costi totali "+VE(m.totalCost)+" − debito "+VE(m.debt):"costi totali "+VE(m.totalCost),"info");
-  if(canF("k_spent")) kpis+=kpi("Speso in cantiere",VE(m.paid),IC.euro,"budget "+VE(m.works)+" · "+pct(m.spentPct,0),m.spentPct>100?"bad":"acc");
+    m.debt?"costi totali "+VE(m.totalCost)+" ‚àí debito "+VE(m.debt):"costi totali "+VE(m.totalCost),"info");
+  if(canF("k_spent")) kpis+=kpi("Speso in cantiere",VE(m.paid),IC.euro,"budget "+VE(m.works)+" ¬∑ "+pct(m.spentPct,0),m.spentPct>100?"bad":"acc");
   if(canF("k_margin")) kpis+=kpi("Margine netto atteso",VE(m.net),IC.trend,"ROI netto "+pct(m.roiN),m.net>=0?"good":"bad");
   if(canF("k_loan")&&m.loan) kpis+=kpi("Debito bancario",eurN(m.debt),IC.scale,
-    "rata "+eurN(m.loan.grace&&m.loan.mToday<=m.loan.grace?m.loan.rataGrace:m.loan.rata)+"/mese · LTC "+pct(m.ltc,0),"info");
+    "rata "+eurN(m.loan.grace&&m.loan.mToday<=m.loan.grace?m.loan.rataGrace:m.loan.rata)+"/mese ¬∑ LTC "+pct(m.ltc,0),"info");
   if(!kpis) kpis=kpi("Avanzamento lavori",pct(prog,0),IC.gauge,late.length?late.length+" fasi in ritardo":"cantiere in linea",late.length?"bad":"good");
   const cCant=canF("c_cantiere"), cExit=canF("c_exit"), cFin=canF("c_finance"), cSoci=canF("c_soci")&&canF("f_quotas");
   const cardCant=!cCant?"":'<div class="card"><div class="card-h"><h3>Cantiere</h3><div class="sp"></div>'+
@@ -3049,7 +3068,7 @@ function viewControl(sc,p){
       '<div class="split"><span class="l">Ricavo previsto</span><span class="v">'+VE(m.rev)+'</span></div>'+
       (canF("s_pl")?'<div class="split"><span class="l">Costi totali</span><span class="v">'+VE(m.totalCost)+'</span></div>'+
         '<div class="split"><span class="l">Margine lordo</span><span class="v">'+VE(m.gross)+'</span></div>':'')+
-      (canF("s_roi")?'<div class="split"><span class="l">Imposte ('+pct(m.taxRate,1)+')</span><span class="v" style="color:var(--bad)">−'+VE(m.taxes)+'</span></div>':'')+
+      (canF("s_roi")?'<div class="split"><span class="l">Imposte ('+pct(m.taxRate,1)+')</span><span class="v" style="color:var(--bad)">‚àí'+VE(m.taxes)+'</span></div>':'')+
       (canF("k_margin")||canF("s_pl")?'<div class="split tot"><span class="l">Margine netto</span><span class="v" style="color:'+(m.net>=0?"var(--good)":"var(--bad)")+'">'+VE(m.net)+'</span></div>':'')+
       (canF("s_roi")?'<div class="row" style="gap:8px;margin-top:14px">'+
         '<div style="flex:1;min-width:120px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px">'+
@@ -3083,8 +3102,8 @@ function viewControl(sc,p){
   const page=el("div","page");
   page.innerHTML=
    '<div class="page-head"><div><h1>'+esc(p.name)+'</h1>'+
-     '<div class="sub">'+esc(p.address||p.city||"—")+' · '+(p.entity==="societa"?"Società":"Persone fisiche")+
-     ' · <span class="chip '+statoChip(p.status)+'" style="vertical-align:middle">'+esc(statoLabel(p.status))+'</span></div></div>'+
+     '<div class="sub">'+esc(p.address||p.city||"‚Äî")+' ¬∑ '+(p.entity==="societa"?"Societ√†":"Persone fisiche")+
+     ' ¬∑ <span class="chip '+statoChip(p.status)+'" style="vertical-align:middle">'+esc(statoLabel(p.status))+'</span></div></div>'+
      '<div class="sp"></div>'+
      (canWrite()?'<button class="btn" id="edp">'+IC.pen+'Modifica dati</button>':'')+'</div>'+
    (projHasNews(p)&&can("docs")?'<div class="notice" id="cr_news">'+IC.bell+
@@ -3112,10 +3131,10 @@ function viewPortfolio(sc){
     a.buy+=m.buy;a.cap+=m.capital;a.rev+=m.rev;a.net+=m.net;a.cost+=m.totalCost;return a},{buy:0,cap:0,rev:0,net:0,cost:0});
   const page=el("div","page");
   let kpis="";
-  if(canF("k_cap")) kpis+=kpi("Capitale proprio",VE(tot.cap),IC.wallet,vis.length+" operazioni · costi − debito","");
+  if(canF("k_cap")) kpis+=kpi("Capitale proprio",VE(tot.cap),IC.wallet,vis.length+" operazioni ¬∑ costi ‚àí debito","");
   if(canF("s_pl")) kpis+=kpi("Costi totali previsti",VE(tot.cost),IC.euro,"tutto incluso","info");
   kpis+=kpi("Ricavi previsti",VE(tot.rev),IC.tag,"prezzi di vendita attesi","acc");
-  if(canF("k_margin")) kpis+=kpi("Margine netto atteso",VE(tot.net),IC.trend,(tot.cap?pct(tot.net/tot.cap*100):"—")+" su capitale",tot.net>=0?"good":"bad");
+  if(canF("k_margin")) kpis+=kpi("Margine netto atteso",VE(tot.net),IC.trend,(tot.cap?pct(tot.net/tot.cap*100):"‚Äî")+" su capitale",tot.net>=0?"good":"bad");
   page.innerHTML='<div class="page-head"><div><h1>Portfolio</h1>'+
     '<div class="sub">Panoramica consolidata di tutte le operazioni</div></div></div>'+
     '<div class="grid g4" style="margin-bottom:12px">'+kpis+'</div>'+
@@ -3130,14 +3149,14 @@ function viewPortfolio(sc){
   vis.forEach(p=>{
     const m=metrics(p,[],[]);
     const tr=el("tr"); tr.style.cursor="pointer";
-    tr.innerHTML='<td class="hd"><b>'+esc(p.name)+'</b><div style="font-size:11.5px;color:var(--ink-3);font-weight:500">'+esc(p.address||p.city||"—")+'</div></td>'+
-      '<td data-l="Soggetto">'+(p.entity==="societa"?"Società":"Persone fisiche")+'</td>'+
+    tr.innerHTML='<td class="hd"><b>'+esc(p.name)+'</b><div style="font-size:11.5px;color:var(--ink-3);font-weight:500">'+esc(p.address||p.city||"‚Äî")+'</div></td>'+
+      '<td data-l="Soggetto">'+(p.entity==="societa"?"Societ√†":"Persone fisiche")+'</td>'+
       '<td data-l="Stato"><span class="chip '+statoChip(p.status)+'">'+esc(statoLabel(p.status))+'</span></td>'+
-      '<td data-l="Acquisto" class="r">'+(canF("k_buy")?VE(m.buy):"—")+'</td>'+
-      '<td data-l="Capitale" class="r">'+(canF("k_cap")?VE(m.capital):"—")+'</td>'+
+      '<td data-l="Acquisto" class="r">'+(canF("k_buy")?VE(m.buy):"‚Äî")+'</td>'+
+      '<td data-l="Capitale" class="r">'+(canF("k_cap")?VE(m.capital):"‚Äî")+'</td>'+
       '<td data-l="Ricavo" class="r">'+VE(m.rev)+'</td>'+
-      '<td data-l="Margine netto" class="r" style="font-weight:700;color:'+(m.net>=0?"var(--good)":"var(--bad)")+'">'+(canF("k_margin")?VE(m.net):"—")+'</td>'+
-      '<td data-l="ROI netto" class="r" style="font-weight:700">'+(canF("s_roi")?pct(m.roiN):"—")+'</td>'+
+      '<td data-l="Margine netto" class="r" style="font-weight:700;color:'+(m.net>=0?"var(--good)":"var(--bad)")+'">'+(canF("k_margin")?VE(m.net):"‚Äî")+'</td>'+
+      '<td data-l="ROI netto" class="r" style="font-weight:700">'+(canF("s_roi")?pct(m.roiN):"‚Äî")+'</td>'+
       '<td data-l="Avanzamento" class="r"><div style="display:flex;align-items:center;gap:7px;justify-content:flex-end">'+
       '<div class="bar good" style="width:54px"><i style="width:'+clamp(N(p.cachedProgress),0,100)+'%"></i></div>'+
       '<span class="mono" style="font-size:11px">'+pct(N(p.cachedProgress),0)+'</span></div></td>';
@@ -3168,8 +3187,8 @@ function viewGantt(sc,p){
   const prog=progressOf(S.tasks);
   const R=ganttRange(S.tasks,p);
   page.innerHTML='<div class="page-head"><div><h1>Cantiere</h1>'+
-    '<div class="sub">'+fmtD(iso(R.start))+' → '+fmtD(iso(addD(R.start,R.weeks*7-1)))+' · '+R.weeks+' settimane'+
-    '<span class="dim"> · trascina le barre per spostare le fasi</span></div></div><div class="sp"></div>'+
+    '<div class="sub">'+fmtD(iso(R.start))+' ‚Üí '+fmtD(iso(addD(R.start,R.weeks*7-1)))+' ¬∑ '+R.weeks+' settimane'+
+    '<span class="dim"> ¬∑ trascina le barre per spostare le fasi</span></div></div><div class="sp"></div>'+
     '<div class="row">'+
       '<div style="text-align:right;margin-right:4px"><div class="eyebrow">Avanzamento</div>'+
       '<div style="font-size:18px;font-weight:800;letter-spacing:-.03em">'+pct(prog,0)+'</div></div>'+
@@ -3200,7 +3219,7 @@ function drawGantt(host,p){
       (canWrite()?'<div style="margin-top:14px"><button class="btn btn-pri" id="g_tpl">Carica cronoprogramma tipo</button></div>':'')+
       '</div></div>';
     const t=$("#g_tpl",host);
-    if(t) t.addEventListener("click",async()=>{ t.disabled=true;t.textContent="Creazione…";
+    if(t) t.addEventListener("click",async()=>{ t.disabled=true;t.textContent="Creazione‚Ä¶";
       await seedTemplate(p.id,p.ganttStart||p.startDate); await loadProjectData(p.id); render(); toast("Cronoprogramma creato") });
     return;
   }
@@ -3246,8 +3265,8 @@ function ganttLeft(t){
   const sub=canF("g_resp")&&t.resp?t.resp:"";
   return '<div class="g-row"><div class="g-li">'+
     '<span style="width:8px;height:8px;border-radius:2px;background:'+catOf(t.cat).c+';flex:none"></span>'+
-    '<span class="nm"'+tap+' title="'+esc(t.name)+(sub?" · "+esc(sub):"")+'">'+esc(t.name)+
-      (sub?'<span class="dim" style="font-weight:500"> · '+esc(sub)+'</span>':'')+'</span>'+
+    '<span class="nm"'+tap+' title="'+esc(t.name)+(sub?" ¬∑ "+esc(sub):"")+'">'+esc(t.name)+
+      (sub?'<span class="dim" style="font-weight:500"> ¬∑ '+esc(sub)+'</span>':'')+'</span>'+
     (canWrite()?'<span class="hnd"><button class="btn btn-xs" data-ed="'+t.id+'">'+IC.pen+'</button>'+
       '<button class="btn btn-xs" data-rm="'+t.id+'">'+IC.trash+'</button></span>':'')+
     '<span class="wk" style="width:52px;text-align:center">'+wkn+'</span>'+
@@ -3260,7 +3279,7 @@ function taskModal(t,isGroup){
     b.innerHTML=fld("t_name","Nome gruppo (es. LAVORI)","text",t?t.name:"");
   }else{
     const wkn=t&&t.start&&t.end?Math.max(1,weeksBetween(t.start,t.end)+1):4;
-    const catOpts=CATS.map(c=>[c.k,c.n]).concat([["__new","+ Nuova categoria…"]]);
+    const catOpts=CATS.map(c=>[c.k,c.n]).concat([["__new","+ Nuova categoria‚Ä¶"]]);
     b.innerHTML=fld("t_name","Voce / lavorazione","text",t?t.name:"")+
       '<div class="f2">'+sel("t_cat","Categoria",t?t.cat:"altro",catOpts)+
         fld("t_resp","Impresa / responsabile","text",t?t.resp:"")+'</div>'+
@@ -3307,7 +3326,7 @@ function taskModal(t,isGroup){
 
 /* ---------- FINANCE: richieste, pagamenti, piano pagamenti, soci ---------- */
 const PSTAT=[["previsto","Previsto"],["confermato","Confermato"],["pagato","Pagato"]];
-const pstatLabel=k=>(PSTAT.find(x=>x[0]===k)||["","—"])[1];
+const pstatLabel=k=>(PSTAT.find(x=>x[0]===k)||["","‚Äî"])[1];
 function viewFinance(sc,p){
   const m=metrics(p,S.fin,S.tasks);
   const lb=ledgerBalances(p,S.fin,S.ledger);
@@ -3346,7 +3365,7 @@ function viewFinance(sc,p){
       '</tr></thead><tbody id="rq"></tbody></table></div></div>':'')+
     (canF("f_pay")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Pagamenti effettuati</h3><div class="sp"></div>'+
       '<span class="chip">'+pays.length+'</span></div><div class="tbl-wrap"><table class="tbl resp"><thead><tr>'+
-      '<th>Data</th><th>Fornitore</th><th>Descrizione</th><th>Pagato da</th><th>Modalità</th><th class="r">Importo</th><th></th>'+
+      '<th>Data</th><th>Fornitore</th><th>Descrizione</th><th>Pagato da</th><th>Modalit√†</th><th class="r">Importo</th><th></th>'+
       '</tr></thead><tbody id="pb"></tbody></table></div></div>':'')+
     (canF("f_ledger")||canF("f_quotas")?'<div class="grid g21">'+
       (canF("f_ledger")?'<div class="card"><div class="card-h"><h3>Conti tra soci</h3><div class="sp"></div>'+
@@ -3363,12 +3382,12 @@ function viewFinance(sc,p){
     drawPayGantt($("#pay-host",page),p);
     const tp=$("#pl_today",page); if(tp) tp.addEventListener("click",()=>scrollToToday(page,ganttRange(S.tasks,p),"pay"));
     const xb=$("#pl_xls",page); if(xb) xb.addEventListener("click",async()=>{
-      xb.disabled=true; const o=xb.innerHTML; xb.textContent="Genero…";
+      xb.disabled=true; const o=xb.innerHTML; xb.textContent="Genero‚Ä¶";
       await exportPayXlsx(p); xb.disabled=false; xb.innerHTML=o; });
     const residuo=planTot-planPaid;
     $("#pl_tot",page).innerHTML=
       '<div class="split"><span class="l">Pagamenti pianificati ('+S.plan.length+')</span><span class="v">'+VE(planTot)+'</span></div>'+
-      '<div class="split"><span class="l">Già pagati</span><span class="v" style="color:var(--good)">'+VE(planPaid)+'</span></div>'+
+      '<div class="split"><span class="l">Gi√† pagati</span><span class="v" style="color:var(--good)">'+VE(planPaid)+'</span></div>'+
       '<div class="split"><span class="l">Ancora da pagare</span><span class="v" style="color:var(--warn)">'+VE(residuo)+'</span></div>'+
       (canF("f_budget")?'<div class="split"><span class="l">Budget lavori</span><span class="v">'+VE(m.works)+'</span></div>'+
        '<div class="split tot"><span class="l">Scostamento piano / budget</span><span class="v" style="color:'+
@@ -3382,7 +3401,7 @@ function viewFinance(sc,p){
     $("#pl_split",page).innerHTML= parts.length?
       '<p class="dim" style="font-size:11.5px;margin-bottom:10px">Quanto tocca a ciascun socio sul piano di cassa, in base alle quote.</p>'+
       '<table class="tbl" style="font-size:12.5px"><thead><tr><th style="padding-left:0">Socio</th><th class="r">Quota</th>'+
-      '<th class="r">Su piano</th><th class="r" style="padding-right:0">Già versato</th></tr></thead><tbody>'+
+      '<th class="r">Su piano</th><th class="r" style="padding-right:0">Gi√† versato</th></tr></thead><tbody>'+
       parts.map(x=>{
         const versato=S.fin.filter(f=>f.kind==="payment").reduce((s,f)=>s+paidByOf(f,x.id),0);
         const dovuto=planTot*(N(x.quota)/qs);
@@ -3392,7 +3411,7 @@ function viewFinance(sc,p){
       '<tr><td style="padding-left:0;font-weight:700">Totale</td><td class="r">'+pct(qs,1)+'</td>'+
       '<td class="r" style="font-weight:800">'+VE(planTot)+'</td><td class="r" style="padding-right:0;font-weight:700">'+VE(m.paid)+'</td></tr>'+
       '</tbody></table>'
-      :'<div class="dim" style="font-size:12.5px">Nessun socio configurato: aggiungili dalla scheda progetto o dal pulsante «Soci e quote».</div>';
+      :'<div class="dim" style="font-size:12.5px">Nessun socio configurato: aggiungili dalla scheda progetto o dal pulsante ¬´Soci e quote¬ª.</div>';
     const s2=$("#f_soci2",page); if(s2) s2.addEventListener("click",()=>partnersModal(p));
   }
 
@@ -3402,9 +3421,9 @@ function viewFinance(sc,p){
     reqs.forEach(f=>{
       const overdue=f.status!=="paid"&&f.due&&f.due<iso(new Date());
       const tr=el("tr");
-      tr.innerHTML='<td class="hd"><b>'+esc(f.supplier||"—")+'</b></td><td data-l="Descrizione" class="muted">'+esc(f.desc||"")+'</td>'+
+      tr.innerHTML='<td class="hd"><b>'+esc(f.supplier||"‚Äî")+'</b></td><td data-l="Descrizione" class="muted">'+esc(f.desc||"")+'</td>'+
         '<td data-l="Data" class="mono" style="font-size:12px">'+fmtD(f.date)+'</td>'+
-        '<td data-l="Scadenza" class="mono" style="font-size:12px'+(overdue?';color:var(--bad);font-weight:700':'')+'">'+(f.due?fmtD(f.due):"—")+'</td>'+
+        '<td data-l="Scadenza" class="mono" style="font-size:12px'+(overdue?';color:var(--bad);font-weight:700':'')+'">'+(f.due?fmtD(f.due):"‚Äî")+'</td>'+
         '<td data-l="Importo" class="r" style="font-weight:700">'+VE(f.amount)+'</td>'+
         '<td data-l="Stato"><span class="chip '+fstatChip(f.status)+'">'+esc(fstatLabel(f.status))+'</span></td>'+
         '<td class="r act-cell"><span class="act row" style="justify-content:flex-end;gap:4px">'+
@@ -3419,11 +3438,11 @@ function viewFinance(sc,p){
     if(!pays.length) pb.innerHTML='<tr><td colspan="7"><div class="empty">Nessun pagamento registrato.</div></td></tr>';
     pays.forEach(f=>{
       const tr=el("tr");
-      tr.innerHTML='<td class="hd"><b>'+fmtD(f.date)+'</b> · '+esc(f.supplier||"—")+
+      tr.innerHTML='<td class="hd"><b>'+fmtD(f.date)+'</b> ¬∑ '+esc(f.supplier||"‚Äî")+
           (f.planId?' <span class="chip info">da piano</span>':'')+'</td>'+
         '<td data-l="Descrizione" class="muted">'+esc(f.desc||"")+'</td>'+
         '<td data-l="Pagato da">'+payerChips(f,p)+'</td>'+
-        '<td data-l="Modalità" class="muted" style="font-size:12px">'+esc((METHODS.find(x=>x[0]===f.method)||["","—"])[1])+'</td>'+
+        '<td data-l="Modalit√†" class="muted" style="font-size:12px">'+esc((METHODS.find(x=>x[0]===f.method)||["","‚Äî"])[1])+'</td>'+
         '<td data-l="Importo" class="r" style="font-weight:700">'+VE(f.amount)+'</td>'+
         '<td class="r act-cell"><span class="act row" style="justify-content:flex-end;gap:4px">'+
         (canWrite()?'<button class="btn btn-xs" data-fe="'+f.id+'">'+IC.pen+'</button>'+
@@ -3434,11 +3453,11 @@ function viewFinance(sc,p){
   const lg=$("#lg",page);
   if(lg){
     if(!S.ledger.length) lg.innerHTML='<tr><td colspan="6"><div class="empty">Nessuna partita tra soci.<br>'+
-      '<span style="font-size:12px">Esempio: «Aloi ha pagato 1.000 € per conto di Pasta».</span></div></td></tr>';
+      '<span style="font-size:12px">Esempio: ¬´Aloi ha pagato 1.000 ‚Ç¨ per conto di Pasta¬ª.</span></div></td></tr>';
     S.ledger.forEach(l=>{
       const a=(p.partners||[]).find(x=>x.id===l.from), bb=(p.partners||[]).find(x=>x.id===l.to);
       const tr=el("tr");
-      tr.innerHTML='<td class="hd"><b>'+esc(a?a.name:"—")+'</b> → '+esc(bb?bb.name:"—")+
+      tr.innerHTML='<td class="hd"><b>'+esc(a?a.name:"‚Äî")+'</b> ‚Üí '+esc(bb?bb.name:"‚Äî")+
           (l.kind==="settle"?' <span class="chip good">rimborso</span>':'')+'</td>'+
         '<td data-l="Data" class="mono" style="font-size:12px">'+fmtD(l.date)+'</td>'+
         '<td data-l="Descrizione" class="muted">'+esc(l.desc||"")+'</td>'+
@@ -3476,7 +3495,7 @@ function viewFinance(sc,p){
   $$("[data-fe]",page).forEach(b=>b.addEventListener("click",()=>{const f=S.fin.find(x=>x.id===b.dataset.fe);if(f)finModal(f,f.kind)}));
   $$("[data-fd]",page).forEach(b=>b.addEventListener("click",()=>{
     const f=S.fin.find(x=>x.id===b.dataset.fd); if(!f)return;
-    confirmBox("Elimina voce","Eliminare «"+(f.supplier||f.desc||"voce")+"» ("+VE(f.amount)+")?","Elimina",async()=>{
+    confirmBox("Elimina voce","Eliminare ¬´"+(f.supplier||f.desc||"voce")+"¬ª ("+VE(f.amount)+")?","Elimina",async()=>{
       await del(ppath("fin/"+f.id)); await loadProjectData(S.pid); render(); toast("Voce eliminata")})}));
   $$("[data-ld]",page).forEach(b=>b.addEventListener("click",async()=>{
     await del(ppath("ledger/"+b.dataset.ld)); await loadProjectData(S.pid); render(); toast("Partita eliminata")}));
@@ -3532,9 +3551,9 @@ function drawPayGantt(host,p){
         return '<div class="g-row"><div class="g-li">'+
         '<span style="width:8px;height:8px;border-radius:2px;background:'+
           (it.status==="pagato"?"#3C7A57":it.status==="confermato"?"#C4712B":"#6E7D8C")+';flex:none"></span>'+
-        '<span class="nm"'+(canWrite()?' data-pe="'+it.id+'" style="cursor:pointer"':'')+' title="'+esc((it.label||"")+" · "+(it.supplier||""))+'">'+esc(it.label||it.supplier||"Pagamento")+
-          (it.supplier?'<span class="dim" style="font-weight:500"> · '+esc(it.supplier)+'</span>':'')+
-          (who?'<span class="dim" style="font-weight:500"> · '+esc(who.name)+'</span>':'')+'</span>'+
+        '<span class="nm"'+(canWrite()?' data-pe="'+it.id+'" style="cursor:pointer"':'')+' title="'+esc((it.label||"")+" ¬∑ "+(it.supplier||""))+'">'+esc(it.label||it.supplier||"Pagamento")+
+          (it.supplier?'<span class="dim" style="font-weight:500"> ¬∑ '+esc(it.supplier)+'</span>':'')+
+          (who?'<span class="dim" style="font-weight:500"> ¬∑ '+esc(who.name)+'</span>':'')+'</span>'+
         (canWrite()?'<span class="hnd"><button class="btn btn-xs" data-pe="'+it.id+'">'+IC.pen+'</button>'+
           '<button class="btn btn-xs" data-pd="'+it.id+'">'+IC.trash+'</button></span>':'')+
         '<span class="wk" style="width:64px;text-align:right;font-weight:700;color:var(--ink)">'+eur0(it.amount)+'</span></div></div>'}).join("")+
@@ -3551,7 +3570,7 @@ function drawPayGantt(host,p){
           (v>0?'<i style="height:'+clamp(v/maxW*44,4,44)+'px"></i>':'')+'</div>').join("")+'</div>'+
         '<div class="g-mon" style="height:30px;border-bottom:1px solid var(--line-2)">'+monthly.map(mm=>
           '<div style="width:'+(mm.span*COL)+'px;justify-content:flex-start;color:'+(mm.sum?"var(--ink)":"var(--ink-4)")+
-          ';font-family:var(--fm);letter-spacing:0;text-transform:none;font-size:10.5px">'+(mm.sum?eur0(mm.sum):"—")+'</div>').join("")+'</div>'+
+          ';font-family:var(--fm);letter-spacing:0;text-transform:none;font-size:10.5px">'+(mm.sum?eur0(mm.sum):"‚Äî")+'</div>').join("")+'</div>'+
         (todayX>=0&&todayX<=W?'<div class="g-today" style="left:'+todayX+'px;top:0;bottom:0"></div>':'')+
       '</div></div></div></div>'+
     '<div class="legend"><span class="li"><span class="sw" style="background:#6E7D8C"></span>Previsto</span>'+
@@ -3562,7 +3581,7 @@ function drawPayGantt(host,p){
     const it=S.plan.find(x=>x.id===b.dataset.pe); if(it) planModal(it)}));
   $$("[data-pd]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
     const it=S.plan.find(x=>x.id===b.dataset.pd); if(!it)return;
-    confirmBox("Elimina pagamento previsto","Eliminare «"+(it.label||it.supplier||"voce")+"» ("+eur0(it.amount)+")?","Elimina",async()=>{
+    confirmBox("Elimina pagamento previsto","Eliminare ¬´"+(it.label||it.supplier||"voce")+"¬ª ("+eur0(it.amount)+")?","Elimina",async()=>{
       await del(ppath("plan/"+it.id)); await loadProjectData(S.pid); render(); toast("Voce eliminata")})}));
   if(!canWrite()) return;
   $$(".pay-bar",host).forEach(bar=>{
@@ -3580,7 +3599,7 @@ function drawPayGantt(host,p){
       const w=Math.round(parseFloat(bar.style.left)/COL);
       const nd=iso(addD(R.start,w*7));
       it.date=nd; await patch(ppath("plan/"+it.id),{date:nd});
-      render(); toast((it.label||"Pagamento")+" → settimana del "+fmtD(nd));
+      render(); toast((it.label||"Pagamento")+" ‚Üí settimana del "+fmtD(nd));
     });
     bar.addEventListener("pointercancel",()=>{on=false;bar.classList.remove("drag")});
     bar.addEventListener("dblclick",()=>planModal(it));
@@ -3591,9 +3610,9 @@ function planModal(it){
   const parts=(p.partners||[]).map(x=>[x.id,x.name+" ("+pct(N(x.quota),0)+")"]);
   const b=el("div");
   b.innerHTML=
-    '<div class="f2">'+fld("q_lab","Voce","text",it?it.label:"","placeholder=\"es. 2° SAL impresa\"")+
+    '<div class="f2">'+fld("q_lab","Voce","text",it?it.label:"","placeholder=\"es. 2¬∞ SAL impresa\"")+
       fld("q_sup","Fornitore","text",it?it.supplier:"")+'</div>'+
-    '<div class="f3">'+fld("q_amt","Importo €","number",it?it.amount:"",'step="100"')+
+    '<div class="f3">'+fld("q_amt","Importo ‚Ç¨","number",it?it.amount:"",'step="100"')+
       fld("q_date","Settimana di pagamento","date",it?it.date:iso(monday(new Date())))+
       fld("q_wk","Durata (settimane)","number",it?(N(it.weeks)||1):1,'min="1" max="26"')+'</div>'+
     '<div class="f2">'+sel("q_st","Stato",it?it.status:"previsto",PSTAT)+
@@ -3650,26 +3669,26 @@ function viewSales(sc,p){
     const tax=Math.max(0,gross)*m.taxRate/100;
     return {d:d,rev:rev,fee:fee,gross:gross,net:gross-tax,roi:m.capital?(gross-tax)/m.capital*100:0};
   });
-  let kpis=kpi("Ricavo previsto",VE(m.rev),IC.tag,units.length?units.length+" unità":"prezzo unico","acc");
+  let kpis=kpi("Ricavo previsto",VE(m.rev),IC.tag,units.length?units.length+" unit√†":"prezzo unico","acc");
   if(canF("s_pl")) kpis+=kpi("Margine lordo",VE(m.gross),IC.trend,"ROI lordo "+pct(m.roiG),m.gross>=0?"good":"bad");
   if(canF("s_roi")) kpis+=kpi("Imposte stimate",VE(m.taxes),IC.scale,(soc?"IRES+IRAP ":"Plusvalenza ")+pct(m.taxRate,1),"info")+
     kpi("Margine netto",VE(m.net),IC.euro,"ROI netto "+pct(m.roiN),m.net>=0?"good":"bad");
   const pl=!canF("s_pl")?"":'<div class="card"><div class="card-h"><h3>Conto economico dell\'operazione</h3></div><div class="card-p">'+
       '<div class="split"><span class="l">Ricavo di vendita</span><span class="v">'+VE(m.rev)+'</span></div>'+
-      '<div class="split"><span class="l">Prezzo di acquisto</span><span class="v">−'+VE(m.buy)+'</span></div>'+
-      '<div class="split"><span class="l">Costi di acquisto (notaio, imposte)</span><span class="v">−'+VE(m.buyCosts)+'</span></div>'+
-      '<div class="split"><span class="l">Lavori (budget '+VE(m.works)+' · pagato '+VE(m.paid)+')</span><span class="v">−'+VE(m.works)+'</span></div>'+
-      (m.design?'<div class="split"><span class="l">Costi di progetto · progettista, DL, pratiche</span>'+
-        '<span class="v">−'+VE(m.design)+'</span></div>':'')+
-      '<div class="split"><span class="l">Altri costi</span><span class="v">−'+VE(m.other)+'</span></div>'+
-      (m.finCost?'<div class="split"><span class="l">Oneri finanziari · '+(m.loan?m.loan.monthsToExit+' mesi':'')+' istruttoria, interessi, estinzione'+
+      '<div class="split"><span class="l">Prezzo di acquisto</span><span class="v">‚àí'+VE(m.buy)+'</span></div>'+
+      '<div class="split"><span class="l">Costi di acquisto (notaio, imposte)</span><span class="v">‚àí'+VE(m.buyCosts)+'</span></div>'+
+      '<div class="split"><span class="l">Lavori (budget '+VE(m.works)+' ¬∑ pagato '+VE(m.paid)+')</span><span class="v">‚àí'+VE(m.works)+'</span></div>'+
+      (m.design?'<div class="split"><span class="l">Costi di progetto ¬∑ progettista, DL, pratiche</span>'+
+        '<span class="v">‚àí'+VE(m.design)+'</span></div>':'')+
+      '<div class="split"><span class="l">Altri costi</span><span class="v">‚àí'+VE(m.other)+'</span></div>'+
+      (m.finCost?'<div class="split"><span class="l">Oneri finanziari ¬∑ '+(m.loan?m.loan.monthsToExit+' mesi':'')+' istruttoria, interessi, estinzione'+
         (m.loan?' <span class="dim">('+eurN(m.debt)+' al '+pct(m.loan.annual,2)+')</span>':'')+
-        '</span><span class="v">−'+eurN(m.finCost)+'</span></div>':'')+
-      '<div class="split"><span class="l">Fee agenzia'+((p.fees&&p.fees.vat)?" (IVA incl.)":"")+'</span><span class="v">−'+VE(m.fee)+'</span></div>'+
+        '</span><span class="v">‚àí'+eurN(m.finCost)+'</span></div>':'')+
+      '<div class="split"><span class="l">Fee agenzia'+((p.fees&&p.fees.vat)?" (IVA incl.)":"")+'</span><span class="v">‚àí'+VE(m.fee)+'</span></div>'+
       '<div class="split"><span class="l"><b style="color:var(--ink)">Totale costi dell\'operazione</b></span>'+
-        '<span class="v">−'+VE(m.totalCost)+'</span></div>'+
+        '<span class="v">‚àí'+VE(m.totalCost)+'</span></div>'+
       '<div class="split tot"><span class="l">Margine lordo</span><span class="v" style="color:'+(m.gross>=0?"var(--good)":"var(--bad)")+'">'+VE(m.gross)+'</span></div>'+
-      (canF("s_roi")?'<div class="split"><span class="l">'+(soc?"IRES + IRAP":"Imposta su plusvalenza")+' · '+pct(m.taxRate,1)+'</span><span class="v" style="color:var(--bad)">−'+VE(m.taxes)+'</span></div>'+
+      (canF("s_roi")?'<div class="split"><span class="l">'+(soc?"IRES + IRAP":"Imposta su plusvalenza")+' ¬∑ '+pct(m.taxRate,1)+'</span><span class="v" style="color:var(--bad)">‚àí'+VE(m.taxes)+'</span></div>'+
       '<div class="split tot"><span class="l">Margine netto</span><span class="v" style="color:'+(m.net>=0?"var(--good)":"var(--bad)")+'">'+VE(m.net)+'</span></div>'+
       '<div class="row" style="gap:8px;margin-top:16px">'+
         '<div style="flex:1;min-width:130px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
@@ -3677,9 +3696,9 @@ function viewSales(sc,p){
           '<div class="dim" style="font-size:11px">capitale proprio '+VE(m.capital)+'</div></div>'+
         '<div style="flex:1;min-width:130px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
           '<div class="eyebrow">ROI netto su capitale proprio</div><div style="font-size:21px;font-weight:800;letter-spacing:-.035em;color:'+(m.roiN>=0?"var(--good)":"var(--bad)")+'">'+pct(m.roiN)+'</div>'+
-          '<div class="dim" style="font-size:11px">'+(m.debt?'capitale proprio '+eurN(m.capital)+' · leva '+pct(m.ltc,0):'ROI su costi '+pct(m.roiCost))+'</div></div>'+
+          '<div class="dim" style="font-size:11px">'+(m.debt?'capitale proprio '+eurN(m.capital)+' ¬∑ leva '+pct(m.ltc,0):'ROI su costi '+pct(m.roiCost))+'</div></div>'+
       '</div>':'')+'</div></div>';
-  const sens=!canF("s_sens")?"":'<div class="card"><div class="card-h"><h3>Sensitività prezzo</h3></div><div class="tbl-wrap">'+
+  const sens=!canF("s_sens")?"":'<div class="card"><div class="card-h"><h3>Sensitivit√† prezzo</h3></div><div class="tbl-wrap">'+
       '<table class="tbl"><thead><tr><th>Scenario</th><th class="r">Ricavo</th><th class="r">Netto</th><th class="r">ROI netto</th></tr></thead><tbody>'+
       scen.map(s=>'<tr'+(s.d===0?' style="background:var(--surface-2)"':'')+'><td>'+
         (s.d===0?'<b>Base</b>':(s.d>0?"+":"")+s.d+"%")+'</td>'+
@@ -3735,12 +3754,12 @@ function viewSales(sc,p){
   const vc=vatCalc(p,m);
   const ivaCard=!canF("s_pl")?"":'<div class="card" style="margin-top:12px"><div class="card-h"><h3>Posizione IVA</h3>'+
     '<div class="sp"></div><span class="chip">aliquota costi '+vc.rate+'%</span></div><div class="card-p">'+
-    '<p class="dim" style="font-size:11.5px;margin-bottom:12px">Calcolata sui valori imponibili, indipendente dallo switch «+ IVA».</p>'+
+    '<p class="dim" style="font-size:11.5px;margin-bottom:12px">Calcolata sui valori imponibili, indipendente dallo switch ¬´+ IVA¬ª.</p>'+
     '<div class="split"><span class="l">Base dei costi con IVA'+(p.ivaOnPurchase?' (acquisto incluso)':'')+'</span>'+
       '<span class="v">'+eurN(vc.base)+'</span></div>'+
-    '<div class="split"><span class="l">IVA a credito sui costi · '+vc.rate+'%</span>'+
+    '<div class="split"><span class="l">IVA a credito sui costi ¬∑ '+vc.rate+'%</span>'+
       '<span class="v" style="color:var(--good)">'+eurN(vc.credit)+'</span></div>'+
-    '<div class="eyebrow" style="margin:16px 0 9px">Se vendi con IVA — ricavo '+eurN(m.rev)+'</div>'+
+    '<div class="eyebrow" style="margin:16px 0 9px">Se vendi con IVA ‚Äî ricavo '+eurN(m.rev)+'</div>'+
     '<div class="ivahead"><span>Aliquota</span><span>IVA a debito</span><span>IVA a credito</span><span>Saldo</span></div>'+
     vc.rows.map(r=>'<div class="ivarow"><span>'+r.rate+'%</span>'+
       '<span class="v">'+eurN(r.debit)+'</span>'+
@@ -3751,11 +3770,11 @@ function viewSales(sc,p){
     '(rimborso o compensazione). Verifica il regime applicabile con il commercialista.</p></div></div>';
   const page=el("div","page");
   page.innerHTML='<div class="page-head"><div><h1>Sales / Exit</h1>'+
-    '<div class="sub">Previsioni di vendita, fee agenzia e fiscalità '+(soc?"societaria":"su persone fisiche")+'</div></div><div class="sp"></div>'+
+    '<div class="sub">Previsioni di vendita, fee agenzia e fiscalit√† '+(soc?"societaria":"su persone fisiche")+'</div></div><div class="sp"></div>'+
     (canWrite()?'<div class="row">'+
-      (canF("s_units")?'<button class="btn btn-sm" id="s_units">Unità</button>':'')+
+      (canF("s_units")?'<button class="btn btn-sm" id="s_units">Unit√†</button>':'')+
       (canF("s_fee")?'<button class="btn btn-sm" id="s_fee">Agenzia</button>':'')+
-      (canF("s_roi")?'<button class="btn btn-sm" id="s_tax">Fiscalità</button>':'')+
+      (canF("s_roi")?'<button class="btn btn-sm" id="s_tax">Fiscalit√†</button>':'')+
       '</div>':'')+'</div>'+
     '<div class="grid g4" style="margin-bottom:12px">'+kpis+'</div>'+
     (pl||sens?'<div class="grid '+(pl&&sens?"g21":"g1")+'" style="margin-bottom:12px">'+pl+sens+'</div>':'')+
@@ -3768,7 +3787,7 @@ function viewSales(sc,p){
 
 
 /* ======================================================================
-   v3 — MAIUSCOLO, gestione IVA, restyling Gantt, azioni sulle card
+   v3 ‚Äî MAIUSCOLO, gestione IVA, restyling Gantt, azioni sulle card
    ====================================================================== */
 
 /* ---------- 1. MAIUSCOLO automatico su tutti i campi di testo ---------- */
@@ -3810,12 +3829,12 @@ function topHTML(){
     sw='<div class="psw" id="psw"><button class="psw-btn" id="pswb">'+
       '<span class="psw-dot">'+esc(initials(p.name))+'</span>'+
       '<span class="psw-txt"><span class="t" style="display:block">'+esc(p.name)+'</span>'+
-      '<span class="s">'+(p.entity==="societa"?"Società":"Persone fisiche")+'</span></span>'+
+      '<span class="s">'+(p.entity==="societa"?"Societ√†":"Persone fisiche")+'</span></span>'+
       '<span style="width:15px;height:15px;color:var(--ink-3);display:grid;place-items:center">'+IC.chev+'</span></button>'+
       (S.pswOpen?'<div class="psw-menu" id="pswm">'+
         vis.map(x=>'<button class="it'+(x.id===S.pid?" on":"")+'" data-sw="'+x.id+'"><span class="psw-dot" style="width:24px;height:24px">'+esc(initials(x.name))+'</span>'+
         '<span style="min-width:0"><span style="display:block;font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.name)+'</span>'+
-        '<span style="font-size:10.5px;color:var(--ink-3)">'+esc(x.city||x.address||"—")+'</span></span></button>').join("")+
+        '<span style="font-size:10.5px;color:var(--ink-3)">'+esc(x.city||x.address||"‚Äî")+'</span></span></button>').join("")+
         '<div class="sep"></div><button class="it" data-sw="__all"><span style="width:24px;display:grid;place-items:center;color:var(--ink-3)">'+IC.folder+'</span>'+
         '<span style="font-size:12.5px;font-weight:700">Tutti i progetti</span></button>'+
       '</div>':'')+'</div>';
@@ -3863,10 +3882,10 @@ function bindShell(){
   const pb=$("#pswb"); if(pb) pb.addEventListener("click",e=>{e.stopPropagation();S.pswOpen=!S.pswOpen;render()});
   if(S.pswOpen) setTimeout(()=>document.addEventListener("click",function h(){S.pswOpen=false;document.removeEventListener("click",h);render()}),0);
   const NEWTIP='<div class="t"><i style="background:var(--accent)"></i>Nuovo documento</div>'+
-    '<div class="r"><span style="white-space:normal">È stato caricato un nuovo documento in questa operazione.</span></div>';
+    '<div class="r"><span style="white-space:normal">√à stato caricato un nuovo documento in questa operazione.</span></div>';
   $$(".dot-new").forEach(d=>{
     const host=d.closest("button")||d;
-    host.setAttribute("title","È stato caricato un nuovo documento");
+    host.setAttribute("title","√à stato caricato un nuovo documento");
     host.addEventListener("pointerenter",ev=>tipShow(NEWTIP,ev));
     host.addEventListener("pointermove",ev=>tipMove(ev));
     host.addEventListener("pointerleave",tipHide);
@@ -3917,9 +3936,9 @@ function projectCard(p,i){
       '<span class="chip '+statoChip(p.status)+'"><span class="dt"></span>'+esc(statoLabel(p.status))+'</span>'+
     '</div>'+
     '<div class="row" style="gap:6px;margin-bottom:14px">'+
-      '<span class="chip">'+(p.entity==="societa"?"Società":"Persone fisiche")+'</span>'+
-      (p.sqm?'<span class="chip">'+esc(p.sqm)+' m²</span>':'')+
-      (p.units&&p.units.length?'<span class="chip">'+p.units.length+' unità</span>':'')+
+      '<span class="chip">'+(p.entity==="societa"?"Societ√†":"Persone fisiche")+'</span>'+
+      (p.sqm?'<span class="chip">'+esc(p.sqm)+' m¬≤</span>':'')+
+      (p.units&&p.units.length?'<span class="chip">'+p.units.length+' unit√†</span>':'')+
       (projHasNews(p)?'<span class="chip acc"><span class="dt"></span>nuovi documenti</span>':'')+
       '<span class="chip">IVA '+(N(p.ivaRate)||22)+'%</span>'+
     '</div>'+
@@ -3936,7 +3955,7 @@ function projectCard(p,i){
   if(pe) pe.addEventListener("click",e=>{e.stopPropagation();projectModal(p)});
   const pdl=$("[data-pdel]",c);
   if(pdl) pdl.addEventListener("click",e=>{e.stopPropagation();
-    confirmBox("Elimina progetto","Eliminare definitivamente «"+p.name+"» con cantiere, finanza e documenti? L'operazione non è reversibile.",
+    confirmBox("Elimina progetto","Eliminare definitivamente ¬´"+p.name+"¬ª con cantiere, finanza e documenti? L'operazione non √® reversibile.",
       "Elimina definitivamente",async()=>{await deleteProject(p)})});
   return c;
 }
@@ -3971,7 +3990,7 @@ function ganttRow(t,idx,R,W,grid){
     const x=((pd(t.start)-R.start)/DAY)/7*COL;
     const w=Math.max(COL*0.7,(((pd(t.end)-pd(t.start))/DAY)+1)/7*COL);
     const c=catOf(t.cat).c; const pg=clamp(N(t.progress),0,100);
-    bar='<div class="g-bar'+(isG?" gp":"")+(!isG&&w>118?" haspg":"")+'" data-bar="'+t.id+'" title="'+esc(t.name+"  ·  "+fmtD(t.start)+" → "+fmtD(t.end)+"  ·  "+Math.round(pg)+"%")+
+    bar='<div class="g-bar'+(isG?" gp":"")+(!isG&&w>118?" haspg":"")+'" data-bar="'+t.id+'" title="'+esc(t.name+"  ¬∑  "+fmtD(t.start)+" ‚Üí "+fmtD(t.end)+"  ¬∑  "+Math.round(pg)+"%")+
       '" style="left:'+x+'px;width:'+w+'px;background-color:'+c+'">'+
       (pg>0?'<span class="fill" style="width:'+pg+'%"></span>':'')+
       '<span class="lab">'+esc(t.name)+'</span>'+
@@ -3989,7 +4008,7 @@ function drawGantt(host,p){
       (canWrite()?'<div style="margin-top:14px"><button class="btn btn-pri" id="g_tpl">Carica cronoprogramma tipo</button></div>':'')+
       '</div></div>';
     const t=$("#g_tpl",host);
-    if(t) t.addEventListener("click",async()=>{ t.disabled=true;t.textContent="Creazione…";
+    if(t) t.addEventListener("click",async()=>{ t.disabled=true;t.textContent="Creazione‚Ä¶";
       await seedTemplate(p.id,p.ganttStart||p.startDate); await loadProjectData(p.id); render(); toast("Cronoprogramma creato") });
     return;
   }
@@ -4053,9 +4072,9 @@ function drawPayGantt(host,p){
         return '<div class="g-row"><div class="g-li">'+
         '<span style="width:8px;height:8px;border-radius:50%;background:'+col(it)+';flex:none"></span>'+
         '<span class="nm"'+(canWrite()?' data-pe="'+it.id+'" style="cursor:pointer"':'')+' title="'+
-          esc((it.label||"")+(it.supplier?" · "+it.supplier:""))+'">'+esc(it.label||it.supplier||"Pagamento")+
-          (it.supplier?'<span class="dim" style="font-weight:500"> · '+esc(it.supplier)+'</span>':'')+
-          (who?'<span class="dim" style="font-weight:500"> · '+esc(who.name)+'</span>':'')+'</span>'+
+          esc((it.label||"")+(it.supplier?" ¬∑ "+it.supplier:""))+'">'+esc(it.label||it.supplier||"Pagamento")+
+          (it.supplier?'<span class="dim" style="font-weight:500"> ¬∑ '+esc(it.supplier)+'</span>':'')+
+          (who?'<span class="dim" style="font-weight:500"> ¬∑ '+esc(who.name)+'</span>':'')+'</span>'+
         (canWrite()?'<span class="hnd"><button class="btn btn-xs" data-pe="'+it.id+'">'+IC.pen+'</button>'+
           '<button class="btn btn-xs" data-pd="'+it.id+'">'+IC.trash+'</button></span>':'')+
         '<span class="wk" style="width:70px;text-align:right;font-weight:700;color:var(--ink);display:block">'+VE(it.amount)+'</span></div></div>'}).join("")+
@@ -4073,10 +4092,10 @@ function drawPayGantt(host,p){
       '<div style="position:relative">'+rows+
         (canWrite()?'<div class="g-row" style="width:'+W+'px"><div class="g-track" style="width:'+W+'px"><div class="g-grid">'+L.grid+'</div></div></div>':'')+
         '<div class="wk-tot">'+weekly.map((v,i)=>'<div style="width:'+COL+'px" title="'+
-          esc(fmtD(iso(addD(R.start,i*7)))+" · "+VE(v))+'">'+
+          esc(fmtD(iso(addD(R.start,i*7)))+" ¬∑ "+VE(v))+'">'+
           (v>0?'<i style="height:'+clamp(v/maxW*42,4,42)+'px"></i>':'')+'</div>').join("")+'</div>'+
         '<div class="mon-tot">'+monTot.map(mm=>'<div style="width:'+(mm.span*COL)+'px;color:'+
-          (mm.sum?"var(--ink)":"var(--ink-4)")+'">'+(mm.sum?VE(mm.sum):"—")+'</div>').join("")+'</div>'+
+          (mm.sum?"var(--ink)":"var(--ink-4)")+'">'+(mm.sum?VE(mm.sum):"‚Äî")+'</div>').join("")+'</div>'+
         (todayX>=0&&todayX<=W?'<div class="g-today" style="left:'+todayX+'px;top:0;bottom:0"></div>':'')+
       '</div></div></div></div>'+
     '<div class="legend"><span class="li"><span class="sw" style="background:#6E7D8C"></span>Previsto</span>'+
@@ -4090,7 +4109,7 @@ function drawPayGantt(host,p){
     const it=S.plan.find(x=>x.id===b.dataset.pe); if(it) planModal(it)}));
   $$("[data-pd]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
     const it=S.plan.find(x=>x.id===b.dataset.pd); if(!it)return;
-    confirmBox("Elimina pagamento previsto","Eliminare «"+(it.label||it.supplier||"voce")+"» ("+VE(it.amount)+")?","Elimina",async()=>{
+    confirmBox("Elimina pagamento previsto","Eliminare ¬´"+(it.label||it.supplier||"voce")+"¬ª ("+VE(it.amount)+")?","Elimina",async()=>{
       await del(ppath("plan/"+it.id)); await loadProjectData(S.pid); render(); toast("Voce eliminata")})}));
   if(!canWrite()) return;
   $$(".pay-bar",host).forEach(bar=>{
@@ -4108,7 +4127,7 @@ function drawPayGantt(host,p){
       const w=Math.round(parseFloat(bar.style.left)/COL);
       const nd=iso(addD(R.start,w*7));
       it.date=nd; await patch(ppath("plan/"+it.id),{date:nd});
-      render(); toast((it.label||"Pagamento")+" → settimana del "+fmtD(nd));
+      render(); toast((it.label||"Pagamento")+" ‚Üí settimana del "+fmtD(nd));
     });
     bar.addEventListener("pointercancel",()=>{on=false;bar.classList.remove("drag")});
     bar.addEventListener("dblclick",()=>planModal(it));
@@ -4117,7 +4136,7 @@ function drawPayGantt(host,p){
 
 
 /* ======================================================================
-   v4 — permessi cartelle, gruppi nel Gantt, pagamenti collegati al piano
+   v4 ‚Äî permessi cartelle, gruppi nel Gantt, pagamenti collegati al piano
    ====================================================================== */
 
 /* ---------- 1. cartelle documenti ---------- */
@@ -4148,9 +4167,9 @@ function viewDocs(sc,p){
   const inF=visFiles.filter(f=>f.folder===S.folder);
   const page=el("div","page");
   page.innerHTML='<div class="page-head"><div><h1>Documenti</h1>'+
-    '<div class="sub">'+visFiles.length+' file archiviati · PDF, immagini, Excel, CSV'+
-    (visFiles.filter(isNewDoc).length?' · <b style="color:var(--accent)">'+visFiles.filter(isNewDoc).length+' nuovi</b>':'')+
-    (hidden?' <span class="dim">· '+hidden+' cartelle non accessibili</span>':'')+'</div></div><div class="sp"></div>'+
+    '<div class="sub">'+visFiles.length+' file archiviati ¬∑ PDF, immagini, Excel, CSV'+
+    (visFiles.filter(isNewDoc).length?' ¬∑ <b style="color:var(--accent)">'+visFiles.filter(isNewDoc).length+' nuovi</b>':'')+
+    (hidden?' <span class="dim">¬∑ '+hidden+' cartelle non accessibili</span>':'')+'</div></div><div class="sp"></div>'+
     (canWrite()?'<div class="row"><button class="btn btn-sm" id="d_nf">'+IC.plus+'Cartella</button>'+
       '<button class="btn btn-pri btn-sm" id="d_up">'+IC.up+'Carica file</button></div>':'')+'</div>'+
     '<div class="fold"><div class="fold-side" id="fs"></div><div class="fold-main">'+
@@ -4181,8 +4200,8 @@ function viewDocs(sc,p){
     if(g.note){
       const h=el("div","dg-h");
       h.innerHTML='<b>'+esc(g.note)+'</b>'+
-        '<span>'+g.files.length+(g.files.length===1?" file":" file")+' · '+fmtD(String(g.at||"").slice(0,10))+
-        ' · '+esc(uploaderName(g.files[0]))+'</span>'+
+        '<span>'+g.files.length+(g.files.length===1?" file":" file")+' ¬∑ '+fmtD(String(g.at||"").slice(0,10))+
+        ' ¬∑ '+esc(uploaderName(g.files[0]))+'</span>'+
         (canWrite()?'<button class="btn btn-xs" data-bn="'+esc(g.key)+'">'+IC.pen+'</button>':'');
       const bn=$("[data-bn]",h);
       if(bn) bn.addEventListener("click",()=>batchModal(p,g.files[0].batch,g.files));
@@ -4226,11 +4245,11 @@ function paidSplit(f){
 function paidByOf(f,id){ let s=0; paidSplit(f).forEach(x=>{ if(x.id===id) s+=x.amount }); return s }
 function payerChips(f,p){
   const sp=paidSplit(f);
-  if(!sp.length) return '<span class="dim">—</span>';
+  if(!sp.length) return '<span class="dim">‚Äî</span>';
   const parts=(p&&p.partners)||[];
   if(sp.length>2) return '<span class="chip acc">'+sp.length+' soci</span>';
   return sp.map(x=>{ const w=parts.find(z=>z.id===x.id);
-    return '<span class="chip acc" style="margin-right:3px">'+esc(w?w.name:"—")+
+    return '<span class="chip acc" style="margin-right:3px">'+esc(w?w.name:"‚Äî")+
       (sp.length>1?' <span style="opacity:.75">'+VE(x.amount)+'</span>':'')+'</span>' }).join("");
 }
 function ledgerBalances(p,fin,ledger){
@@ -4267,17 +4286,17 @@ function finModal(f,kind){
   const b=el("div");
   b.innerHTML=
     (!isReq&&openPlan.length?'<div class="field"><label for="x_plan">Collega a un pagamento previsto</label>'+
-      '<select class="inp" id="x_plan"><option value="">— nessun collegamento —</option>'+
+      '<select class="inp" id="x_plan"><option value="">‚Äî nessun collegamento ‚Äî</option>'+
       openPlan.map(x=>'<option value="'+x.id+'"'+((f&&f.planId===x.id)?" selected":"")+'>'+
-        esc((x.label||"Pagamento")+(x.supplier?" · "+x.supplier:"")+" · "+eurN(x.amount)+" · sett. "+fmtD(x.date))+
+        esc((x.label||"Pagamento")+(x.supplier?" ¬∑ "+x.supplier:"")+" ¬∑ "+eurN(x.amount)+" ¬∑ sett. "+fmtD(x.date))+
         '</option>').join("")+'</select>'+
       '<div class="dim" style="font-size:11.5px;margin-top:5px">Selezionandolo, importo e fornitore si compilano da soli.</div></div>':'')+
     '<div class="f2">'+fld("x_sup","Fornitore / impresa","text",f?f.supplier:"")+
-      fld("x_amt","Importo €","number",f?f.amount:"",'step="0.01"')+'</div>'+
+      fld("x_amt","Importo ‚Ç¨","number",f?f.amount:"",'step="0.01"')+'</div>'+
     fld("x_desc","Descrizione","text",f?f.desc:"")+
     '<div class="f2">'+fld("x_date",isReq?"Data richiesta":"Data pagamento","date",f?f.date:iso(new Date()))+
       (isReq?fld("x_due","Scadenza","date",f?f.due:"")
-            :sel("x_meth","Modalità",f?f.method:"bonifico",METHODS))+'</div>'+
+            :sel("x_meth","Modalit√†",f?f.method:"bonifico",METHODS))+'</div>'+
     '<div class="f2">'+
       (isReq?sel("x_st","Stato",f?f.status:"draft",FSTAT):'<div></div>')+
       sel("x_cat","Voce di costo",f?f.cat:"lavori",[["lavori","Lavori / cantiere"],["progetto","Progetto e permessi"],
@@ -4325,7 +4344,7 @@ function finModal(f,kind){
     const d=t-tot;
     el2.innerHTML=eurN(t)+' di '+eurN(tot)+
       (Math.abs(d)>0.5?' <span style="color:'+(d>0?"var(--bad)":"var(--warn)")+'">('+(d>0?"+":"")+eurN(d)+')</span>'
-                      :' <span style="color:var(--good)">✓</span>');
+                      :' <span style="color:var(--good)">‚úì</span>');
   };
   const rebalance=(mode)=>{
     const tot=N(amtEl?amtEl.value:0);
@@ -4419,10 +4438,10 @@ function taskModal(t,isGroup){
     const wkn=t&&t.start&&t.end?Math.max(1,weeksBetween(t.start,t.end)+1):4;
     const gl=groupsOf();
     const curG=t?groupOfTask(t.id):(gl.length?gl[gl.length-1].id:"");
-    const catOpts=CATS.map(c=>[c.k,c.n]).concat([["__new","+ Nuova categoria…"]]);
+    const catOpts=CATS.map(c=>[c.k,c.n]).concat([["__new","+ Nuova categoria‚Ä¶"]]);
     b.innerHTML=fld("t_name","Voce / lavorazione","text",t?t.name:"")+
       '<div class="f2">'+
-        (gl.length?sel("t_grp","Gruppo",curG,[["","— fuori gruppo —"]].concat(gl.map(g=>[g.id,g.name])))
+        (gl.length?sel("t_grp","Gruppo",curG,[["","‚Äî fuori gruppo ‚Äî"]].concat(gl.map(g=>[g.id,g.name])))
           :'<div class="field"><label>Gruppo</label><input class="inp" disabled value="Nessun gruppo creato"></div>')+
         fld("t_resp","Impresa / responsabile","text",t?t.resp:"")+'</div>'+
       '<div class="f2">'+sel("t_cat","Categoria (colore della barra)",t?t.cat:"altro",catOpts)+
@@ -4476,7 +4495,7 @@ function taskModal(t,isGroup){
 
 
 /* ======================================================================
-   v5 — finanziamento bancario alla francese nel business plan
+   v5 ‚Äî finanziamento bancario alla francese nel business plan
    ====================================================================== */
 PERM_FIELDS[0].items.push(["k_loan","Finanziamento (KPI)"],["c_loan","Riquadro finanziamento e piano"]);
 PERM_FIELDS[2].items.push(["s_profit","Utile netto per socio"]);
@@ -4578,26 +4597,26 @@ function loanCard(p,m){
       '<div style="flex:1;min-width:132px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
         '<div class="eyebrow">'+(L.grace?"Rata preammortamento":"Rata mensile")+'</div>'+
         '<div style="font-size:20px;font-weight:800;letter-spacing:-.03em">'+eurN(L.grace?L.rataGrace:L.rata)+'</div>'+
-        '<div class="dim" style="font-size:11px">'+(L.grace?L.grace+" mesi · soli interessi":L.n+" rate · francese")+'</div></div>'+
+        '<div class="dim" style="font-size:11px">'+(L.grace?L.grace+" mesi ¬∑ soli interessi":L.n+" rate ¬∑ francese")+'</div></div>'+
       (L.grace?'<div style="flex:1;min-width:132px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
         '<div class="eyebrow">Rata a regime</div>'+
         '<div style="font-size:20px;font-weight:800;letter-spacing:-.03em">'+eurN(L.rata)+'</div>'+
-        '<div class="dim" style="font-size:11px">'+L.n+' rate · francese</div></div>':'')+
+        '<div class="dim" style="font-size:11px">'+L.n+' rate ¬∑ francese</div></div>':'')+
     '</div>'+
     '<div class="split"><span class="l">Debito erogato</span><span class="v">'+eurN(L.C)+'</span></div>'+
-    '<div class="split"><span class="l">Durata · tasso nominale</span><span class="v">'+L.tot+' mesi · '+pct(L.annual,2)+'</span></div>'+
-    '<div class="split"><span class="l">Capitale proprio (costi totali − debito)</span><span class="v">'+eurN(m.equity)+'</span></div>'+
+    '<div class="split"><span class="l">Durata ¬∑ tasso nominale</span><span class="v">'+L.tot+' mesi ¬∑ '+pct(L.annual,2)+'</span></div>'+
+    '<div class="split"><span class="l">Capitale proprio (costi totali ‚àí debito)</span><span class="v">'+eurN(m.equity)+'</span></div>'+
     '<div class="split"><span class="l">Residuo a oggi'+(L.mToday?' ('+L.mToday+' rate pagate)':' (nessuna rata)')+'</span>'+
       '<span class="v">'+eurN(L.resToday)+'</span></div>'+
-    '<div class="split"><span class="l">Spese di istruttoria</span><span class="v">−'+eurN(L.feeSetup)+'</span></div>'+
+    '<div class="split"><span class="l">Spese di istruttoria</span><span class="v">‚àí'+eurN(L.feeSetup)+'</span></div>'+
     '<div class="split"><span class="l">Interessi su '+(L.monthsToExit||L.tot)+' mesi di utilizzo'+
       ' <span class="dim">('+esc(L.holdSource)+')</span></span>'+
-      '<span class="v">−'+eurN(L.interestToExit)+'</span></div>'+
+      '<span class="v">‚àí'+eurN(L.interestToExit)+'</span></div>'+
     '<div class="split"><span class="l">Estinzione anticipata '+pct(L.earlyPct,2)+' sul residuo '+eurN(L.residualAtExit)+'</span>'+
-      '<span class="v">−'+eurN(L.feeEarly)+'</span></div>'+
+      '<span class="v">‚àí'+eurN(L.feeEarly)+'</span></div>'+
     '<div class="split tot"><span class="l">Costo totale del finanziamento</span>'+
       '<span class="v" style="color:var(--bad)">'+eurN(L.finCost)+'</span></div>'+
-    '<p class="dim" style="font-size:11.5px;margin-top:10px">Questi oneri sono già sottratti dal margine in Control Room, Sales / Exit e Portfolio.</p>'+
+    '<p class="dim" style="font-size:11.5px;margin-top:10px">Questi oneri sono gi√† sottratti dal margine in Control Room, Sales / Exit e Portfolio.</p>'+
     '</div></div>';
 }
 function loanPlanModal(p){
@@ -4622,13 +4641,13 @@ function loanPlanModal(p){
       '<td class="r mono" style="font-size:12px">'+eurN(r.res)+'</td></tr>').join("")+
     '</tbody></table></div>'+
     (L.exit?'<p class="dim" style="font-size:11.5px;margin-top:10px">Le rate su fondo chiaro cadono dopo l\'exit prevista del '+
-      fmtD(L.exit)+': a quella data il residuo è '+eurN(L.residualAtExit)+' e l\'estinzione anticipata costa '+eurN(L.feeEarly)+'.</p>':'');
+      fmtD(L.exit)+': a quella data il residuo √® '+eurN(L.residualAtExit)+' e l\'estinzione anticipata costa '+eurN(L.feeEarly)+'.</p>':'');
   const mo=modal({title:"Piano di ammortamento",wide:true,body:b,ok:null,cancel:"Chiudi"});
   const dl=el("button","btn btn-sm"); dl.innerHTML=IC.dl+"CSV";
   dl.addEventListener("click",async()=>{
     const rows=[["Rata","Scadenza","Quota rata","Interessi","Capitale","Residuo"]];
     L.rows.forEach(r=>rows.push([r.m,r.date,r.rata.toFixed(2),r.int.toFixed(2),r.cap.toFixed(2),r.res.toFixed(2)]));
-    const csv="﻿"+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\r\n");
+    const csv="Ôªø"+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\r\n");
     if(!S.dl){toast("Download non disponibile",true);return}
     try{ await S.dl.save({filename:"ammortamento-"+String(p.name).replace(/[^\w]+/g,"-").toLowerCase()+".csv",data:csv});
       toast("CSV salvato") }catch(e){ if(!e||e.code!=="declined") toast("Download non riuscito",true) }
@@ -4638,7 +4657,7 @@ function loanPlanModal(p){
 
 
 /* ======================================================================
-   v6 — la timeline resta dov'era dopo ogni modifica
+   v6 ‚Äî la timeline resta dov'era dopo ogni modifica
    ====================================================================== */
 S.scroll={gantt:null,pay:null};
 function keepScroll(host,key,R){
@@ -4670,17 +4689,17 @@ async function openProject(id){
   S.pid=id; lsSet("repjt.pid",id);
   S.view="project"; S.sideOpen=false; S.pswOpen=false;
   if(!can(S.tab)) S.tab=firstTab();
-  const sc=$("#scroll"); if(sc) sc.innerHTML='<div class="loading"><div class="spin"></div>Apertura progetto…</div>';
+  const sc=$("#scroll"); if(sc) sc.innerHTML='<div class="loading"><div class="spin"></div>Apertura progetto‚Ä¶</div>';
   await loadProjectData(id);
   render();
 }
 
 
 /* ======================================================================
-   v7 — vignetta informativa sulle barre del Gantt
+   v7 ‚Äî vignetta informativa sulle barre del Gantt
    ====================================================================== */
 const GIORNI=["dom","lun","mar","mer","gio","ven","sab"];
-function fmtDL(s){ const d=pd(s); if(!d) return "—"; return GIORNI[d.getDay()]+" "+fmtD(s) }
+function fmtDL(s){ const d=pd(s); if(!d) return "‚Äî"; return GIORNI[d.getDay()]+" "+fmtD(s) }
 let _tip=null;
 function tipEl(){
   if(_tip&&document.body.contains(_tip)) return _tip;
@@ -4721,7 +4740,7 @@ function taskTip(t,bar,R,live){
       tipRow("Inizio",fmtDL(st))+
       tipRow("Fine",fmtDL(en))+
       '<div class="sep"></div>'+
-      tipRow("Durata",wk+(wk===1?" settimana":" settimane")+" · "+days+" gg",true)+
+      tipRow("Durata",wk+(wk===1?" settimana":" settimane")+" ¬∑ "+days+" gg",true)+
       tipRow("Avanzamento",Math.round(N(t.progress))+"%")+
       (canF("g_resp")&&t.resp?tipRow("Impresa",t.resp):"")+
       '<div class="sep"></div>'+
@@ -4769,7 +4788,7 @@ function bindGanttRows(host,R,W,p){
     const t=S.tasks.find(x=>x.id===b.dataset.ed); if(t) taskModal(t,t.group)}));
   $$("[data-rm]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
     const t=S.tasks.find(x=>x.id===b.dataset.rm); if(!t)return;
-    confirmBox("Elimina voce","Eliminare «"+t.name+"» dal cronoprogramma?","Elimina",async()=>{
+    confirmBox("Elimina voce","Eliminare ¬´"+t.name+"¬ª dal cronoprogramma?","Elimina",async()=>{
       await del(ppath("tasks/"+t.id)); await loadProjectData(S.pid); await syncProgress(p); render(); toast("Voce eliminata")})}));
   $$(".g-bar",host).forEach(bar=>{
     const id=bar.dataset.bar; const t=S.tasks.find(x=>x.id===id); if(!t) return;
@@ -4803,7 +4822,7 @@ function bindGanttRows(host,R,W,p){
       await patch(ppath("tasks/"+t.id),data);
       await syncProgress(p);
       render();
-      toast(t.name+" · "+fmtD(data.start)+" → "+fmtD(data.end)+" · "+g.weeks+" sett.");
+      toast(t.name+" ¬∑ "+fmtD(data.start)+" ‚Üí "+fmtD(data.end)+" ¬∑ "+g.weeks+" sett.");
       void ev;
     };
     bar.addEventListener("pointerdown",down);
@@ -4831,9 +4850,9 @@ function bindPayTips(host,R,p){
 
 
 /* ======================================================================
-   v8 — spaccato conti tra soci in stile Splitwise
+   v8 ‚Äî spaccato conti tra soci in stile Splitwise
    ====================================================================== */
-const nameOf=(p,id)=>{ const x=((p&&p.partners)||[]).find(z=>z.id===id); return x?x.name:"—" };
+const nameOf=(p,id)=>{ const x=((p&&p.partners)||[]).find(z=>z.id===id); return x?x.name:"‚Äî" };
 function settlements(rows){
   const cred=rows.filter(r=>r.balance>0.5).map(r=>({id:r.id,name:r.name,v:r.balance})).sort((a,b)=>b.v-a.v);
   const deb=rows.filter(r=>r.balance<-0.5).map(r=>({id:r.id,name:r.name,v:-r.balance})).sort((a,b)=>b.v-a.v);
@@ -4877,23 +4896,23 @@ function mvLine(p,m,sid){
   if(m.kind==="pay"){
     const altri=(m.payers||[]).filter(x=>x.id!==sid);
     if(m.mine>0.005&&m.eff>0.5)
-      spiega="Hai pagato "+VE(m.mine)+" · la tua quota era "+VE(m.due)+" → hai anticipato "+VE(m.eff)+" per gli altri soci.";
+      spiega="Hai pagato "+VE(m.mine)+" ¬∑ la tua quota era "+VE(m.due)+" ‚Üí hai anticipato "+VE(m.eff)+" per gli altri soci.";
     else if(m.mine>0.005&&m.eff<-0.5)
-      spiega="Hai pagato "+VE(m.mine)+" ma la tua quota era "+VE(m.due)+" → devi ancora "+VE(-m.eff)+".";
+      spiega="Hai pagato "+VE(m.mine)+" ma la tua quota era "+VE(m.due)+" ‚Üí devi ancora "+VE(-m.eff)+".";
     else if(m.mine>0.005)
       spiega="Hai pagato esattamente la tua quota ("+VE(m.due)+").";
     else
       spiega="Pagato da "+(altri.length?altri.map(x=>nameOf(p,x.id)).join(", "):"altri")+
-        " · la tua quota su "+VE(m.total)+" è "+VE(m.due)+" → sei in debito di "+VE(m.due)+".";
-  } else if(m.kind==="led-out") spiega="Hai anticipato "+VE(m.total)+" per suo conto → te li deve restituire.";
-  else if(m.kind==="led-in") spiega="Ha anticipato "+VE(m.total)+" per te → glieli devi restituire.";
-  else if(m.kind==="settle-out") spiega="Hai rimborsato "+VE(m.total)+" → il conto si chiude di pari importo.";
-  else spiega="Hai ricevuto "+VE(m.total)+" a saldo → il conto si chiude di pari importo.";
+        " ¬∑ la tua quota su "+VE(m.total)+" √® "+VE(m.due)+" ‚Üí sei in debito di "+VE(m.due)+".";
+  } else if(m.kind==="led-out") spiega="Hai anticipato "+VE(m.total)+" per suo conto ‚Üí te li deve restituire.";
+  else if(m.kind==="led-in") spiega="Ha anticipato "+VE(m.total)+" per te ‚Üí glieli devi restituire.";
+  else if(m.kind==="settle-out") spiega="Hai rimborsato "+VE(m.total)+" ‚Üí il conto si chiude di pari importo.";
+  else spiega="Hai ricevuto "+VE(m.total)+" a saldo ‚Üí il conto si chiude di pari importo.";
   return '<div class="mv">'+
     '<div class="mv-h"><span class="mv-d">'+fmtD(m.date)+'</span>'+
       '<span class="mv-t">'+esc(m.title)+'</span>'+
-      '<span class="mv-e" style="color:'+(pos?"var(--good)":"var(--bad)")+'">'+(pos?"+":"−")+VE(Math.abs(m.eff))+'</span></div>'+
-    '<div class="mv-b">'+esc(spiega)+(m.desc&&m.kind==="pay"?' <span class="dim">· '+esc(m.desc)+'</span>':'')+'</div>'+
+      '<span class="mv-e" style="color:'+(pos?"var(--good)":"var(--bad)")+'">'+(pos?"+":"‚àí")+VE(Math.abs(m.eff))+'</span></div>'+
+    '<div class="mv-b">'+esc(spiega)+(m.desc&&m.kind==="pay"?' <span class="dim">¬∑ '+esc(m.desc)+'</span>':'')+'</div>'+
     '</div>';
 }
 function socioModal(p,sid){
@@ -4912,7 +4931,7 @@ function socioModal(p,sid){
         '<div style="text-align:right"><div class="eyebrow">Saldo</div>'+
           '<div style="font-size:21px;font-weight:800;letter-spacing:-.035em;color:'+
             (r.balance>1?"var(--good)":r.balance<-1?"var(--bad)":"var(--ink-3)")+'">'+
-            (r.balance>1?"+":r.balance<-1?"−":"")+VE(Math.abs(r.balance))+'</div>'+
+            (r.balance>1?"+":r.balance<-1?"‚àí":"")+VE(Math.abs(r.balance))+'</div>'+
           '<span class="chip '+tone+'">'+(r.balance>1?"a credito":r.balance<-1?"a debito":"in pari")+'</span></div>'+
       '</div></div>'+
     '<div class="grid g3" style="gap:8px;margin-bottom:14px">'+
@@ -4929,7 +4948,7 @@ function socioModal(p,sid){
     (mv.length?mv.map(m=>mvLine(p,m,sid)).join("")
       :'<div class="dim" style="font-size:12.5px">Nessun movimento registrato per questo socio.</div>')+
     '<p class="dim" style="font-size:11.5px;margin-top:12px">Ogni pagamento viene diviso fra i soci in base alle quote: '+
-    'chi versa più della propria quota va a credito, chi versa meno va a debito.</p>';
+    'chi versa pi√π della propria quota va a credito, chi versa meno va a debito.</p>';
   modal({title:"Conto di "+r.name,wide:true,body:b,ok:null,cancel:"Chiudi"});
 }
 function settlementModal(p){
@@ -4960,7 +4979,7 @@ function settleModal(p,s){
   const b=el("div");
   b.innerHTML='<p class="muted" style="font-size:13px;margin-bottom:14px"><b>'+esc(s.fromName)+'</b> rimborsa <b>'+
     esc(s.toName)+'</b>. Il movimento chiude il debito per l\'importo indicato.</p>'+
-    '<div class="f2">'+fld("se_amt","Importo rimborsato €","number",Math.round(s.amount*100)/100,'step="0.01"')+
+    '<div class="f2">'+fld("se_amt","Importo rimborsato ‚Ç¨","number",Math.round(s.amount*100)/100,'step="0.01"')+
       fld("se_date","Data","date",iso(new Date()))+'</div>'+
     fld("se_desc","Causale","text","RIMBORSO CONTI SOCI");
   modal({title:"Registra rimborso",body:b,ok:"Registra",onOk:async(body)=>{
@@ -4974,7 +4993,7 @@ function settleModal(p,s){
 
 
 /* ======================================================================
-   v9 — export Excel della timeline pagamenti (xlsx nativo, senza librerie)
+   v9 ‚Äî export Excel della timeline pagamenti (xlsx nativo, senza librerie)
    ====================================================================== */
 const _crcT=(function(){const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;
   for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; t[n]=c>>>0} return t})();
@@ -5012,14 +5031,14 @@ function zipStore(files){
 }
 const xe=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 function colName(n){let s="";n++;while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=(n-m-1)/26}return s}
-/* stili: 0 base · 1 titolo · 2 sottotitolo · 3 intestazione · 4 testo · 5 €
-   6 € grassetto · 7 data · 8 centrato · 9 kpi etichetta · 10 kpi valore
-   11 chip verde · 12 chip ambra · 13 chip grigio · 14 cella gantt · 15 totale · 16 % · 17 sezione */
+/* stili: 0 base ¬∑ 1 titolo ¬∑ 2 sottotitolo ¬∑ 3 intestazione ¬∑ 4 testo ¬∑ 5 ‚Ç¨
+   6 ‚Ç¨ grassetto ¬∑ 7 data ¬∑ 8 centrato ¬∑ 9 kpi etichetta ¬∑ 10 kpi valore
+   11 chip verde ¬∑ 12 chip ambra ¬∑ 13 chip grigio ¬∑ 14 cella gantt ¬∑ 15 totale ¬∑ 16 % ¬∑ 17 sezione */
 const XSTYLES=
 '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
 '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
 '<numFmts count="3">'+
- '<numFmt numFmtId="164" formatCode="&quot;€&quot;\\ #,##0"/>'+
+ '<numFmt numFmtId="164" formatCode="&quot;‚Ç¨&quot;\\ #,##0"/>'+
  '<numFmt numFmtId="165" formatCode="dd/mm/yyyy"/>'+
  '<numFmt numFmtId="166" formatCode="0.0%"/></numFmts>'+
 '<fonts count="8">'+
@@ -5116,16 +5135,16 @@ async function exportPayXlsx(p){
   const rows=[];
   const head=[T("PIANO PAGAMENTI",1)]; for(let i=1;i<NC+weeks.length;i++) head.push(T("",1));
   rows.push(head);
-  const sub=[T(String(p.name||"").toUpperCase()+"  ·  "+String(p.address||p.city||"").toUpperCase(),2)];
+  const sub=[T(String(p.name||"").toUpperCase()+"  ¬∑  "+String(p.address||p.city||"").toUpperCase(),2)];
   for(let i=1;i<NC+weeks.length;i++) sub.push(T("",2));
   rows.push(sub);
-  const sub2=[T("Periodo "+fmtD(iso(R.start))+" – "+fmtD(iso(addD(R.start,R.weeks*7-1)))+
-    "  ·  Importi "+(iva?"con IVA "+vatRate()+"% inclusa":"imponibili")+
-    "  ·  Generato il "+fmtD(iso(new Date())),2)];
+  const sub2=[T("Periodo "+fmtD(iso(R.start))+" ‚Äì "+fmtD(iso(addD(R.start,R.weeks*7-1)))+
+    "  ¬∑  Importi "+(iva?"con IVA "+vatRate()+"% inclusa":"imponibili")+
+    "  ¬∑  Generato il "+fmtD(iso(new Date())),2)];
   for(let i=1;i<NC+weeks.length;i++) sub2.push(T("",2));
   rows.push(sub2);
   rows.push([]);
-  rows.push([T("TOTALE PIANIFICATO",9),T("",9),T("GIÀ PAGATO",9),T("",9),T("DA PAGARE",9),T("",9),T("BUDGET LAVORI",9),T("",9),T("",9)]);
+  rows.push([T("TOTALE PIANIFICATO",9),T("",9),T("GI√Ä PAGATO",9),T("",9),T("DA PAGARE",9),T("",9),T("BUDGET LAVORI",9),T("",9),T("",9)]);
   rows.push([NUM(Math.round(tot),10),T("",10),NUM(Math.round(pagato),10),T("",10),
     NUM(Math.round(tot-pagato),10),T("",10),NUM(Math.round(m.works*k),10),T("",10),T("",10)]);
   rows.push([]);
@@ -5168,7 +5187,7 @@ async function exportPayXlsx(p){
   /* --- foglio 3: ripartizione soci --- */
   const r3=[[T("RIPARTIZIONE PER QUOTE",1),T("",1),T("",1),T("",1),T("",1)],
             [T("Quanto tocca a ciascun socio sul piano di cassa",2),T("",2),T("",2),T("",2),T("",2)],[],
-            [T("SOCIO",3),T("QUOTA",3),T("SU PIANO",3),T("GIÀ VERSATO",3),T("DIFFERENZA",3)]];
+            [T("SOCIO",3),T("QUOTA",3),T("SU PIANO",3),T("GI√Ä VERSATO",3),T("DIFFERENZA",3)]];
   parts.forEach(x=>{
     const versato=S.fin.filter(f=>f.kind==="payment").reduce((s,f)=>s+paidByOf(f,x.id),0)*k;
     const dovuto=tot*(N(x.quota)/qSum);
@@ -5220,7 +5239,7 @@ async function exportPayXlsx(p){
 
 
 /* ======================================================================
-   v10 — avvisi sui documenti non ancora visualizzati
+   v10 ‚Äî avvisi sui documenti non ancora visualizzati
    ====================================================================== */
 IC.bell='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+
   '<path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 20a2 2 0 0 0 3 0"/></svg>';
@@ -5265,7 +5284,7 @@ function newsModal(){
         '<span class="psw-dot">'+esc(initials(p.name))+'</span>'+
         '<span class="nx"><span class="n1">'+esc(p.name)+'</span>'+
         '<span class="n2">'+esc(p.lastDocName?("ultimo: "+p.lastDocName):"nuovi documenti")+
-          ' · '+fmtD(String(p.lastDocAt||"").slice(0,10))+'</span></span>'+
+          ' ¬∑ '+fmtD(String(p.lastDocAt||"").slice(0,10))+'</span></span>'+
         '<span class="chip acc">nuovo</span></button>').join("")
     : '<div class="empty"><div class="big">Tutto letto</div>Non ci sono documenti nuovi da vedere.</div>';
   const mo=modal({title:"Documenti nuovi",body:b,ok:null,cancel:"Chiudi"});
@@ -5276,7 +5295,7 @@ function newsModal(){
 
 
 /* ======================================================================
-   v11 — documenti: vignetta al passaggio e anteprime PDF / Excel
+   v11 ‚Äî documenti: vignetta al passaggio e anteprime PDF / Excel
    ====================================================================== */
 /* --- inflate raw (RFC 1951) e lettura ZIP, senza librerie --- */
 function inflateRaw(src){
@@ -5476,18 +5495,18 @@ function withExt(base,ext){ base=String(base||"").trim();
   return (base.toLowerCase().slice(-(ext.length+1))==="."+ext)?base:(base||"file")+"."+ext }
 function uploaderName(f){
   const a=S.accounts.find(x=>x.id===f.by);
-  return a?(a.name||a.email):"—";
+  return a?(a.name||a.email):"‚Äî";
 }
 function fileTip(f){
   const ex=extOf(f.name);
   const who=S.accounts.find(a=>a.id===f.by);
   const isNew=isNewDoc(f);
   return '<div class="t"><i style="background:'+extColor(ex)+'"></i>'+esc(f.name)+'</div>'+
-    tipRow("Tipo",(ex||"file").toUpperCase()+(f.assetId?"":" · archiviato"))+
+    tipRow("Tipo",(ex||"file").toUpperCase()+(f.assetId?"":" ¬∑ archiviato"))+
     tipRow("Dimensione",sizeStr(f.size))+
     tipRow("Caricato il",fmtDL(String(f.at||"").slice(0,10)))+
     (who?tipRow("Da",who.name||who.email):"")+
-    tipRow("Cartella",f.folder||"—")+
+    tipRow("Cartella",f.folder||"‚Äî")+
     '<div class="sep"></div>'+
     '<div class="r"><span style="color:var(--accent)">'+
       (IMG_EXT.indexOf(ex)>=0||ex==="pdf"||SHEET_EXT.indexOf(ex)>=0||TEXT_EXT.indexOf(ex)>=0
@@ -5511,8 +5530,8 @@ function fileCard(f){
       (SHEET_EXT.indexOf(ex)>=0||ex==="csv"?'<div class="xlsmini" data-xls="'+f.id+'"></div>':'')+
     '</div>'+
     '<div class="meta"><div class="n" title="'+esc(f.name)+'">'+esc(f.name)+'</div>'+
-    '<div class="s">'+sizeStr(f.size)+' · '+fmtD(String(f.at||"").slice(0,10))+'</div>'+
-    (uploaderName(f)!=="—"?'<div class="up"><span class="av">'+esc(initials(uploaderName(f)))+'</span>'+
+    '<div class="s">'+sizeStr(f.size)+' ¬∑ '+fmtD(String(f.at||"").slice(0,10))+'</div>'+
+    (uploaderName(f)!=="‚Äî"?'<div class="up"><span class="av">'+esc(initials(uploaderName(f)))+'</span>'+
       esc(uploaderName(f))+'</div>':'')+'</div>'+
     '<div class="fa"><button class="btn btn-xs" data-dl>'+IC.dl+'Scarica</button>'+
     (prev?'<button class="btn btn-xs" data-open>Anteprima</button>':'')+
@@ -5520,7 +5539,7 @@ function fileCard(f){
   $("[data-dl]",c).addEventListener("click",()=>downloadFile(f));
   const op=$("[data-open]",c); if(op) op.addEventListener("click",()=>previewFile(f));
   const rm=$("[data-rm]",c);
-  if(rm) rm.addEventListener("click",()=>confirmBox("Elimina file","Eliminare «"+f.name+"»?","Elimina",async()=>{
+  if(rm) rm.addEventListener("click",()=>confirmBox("Elimina file","Eliminare ¬´"+f.name+"¬ª?","Elimina",async()=>{
     if(f.assetId&&S.assets){ try{ await S.assets.delete(f.assetId) }catch(e){} }
     if(f.chunks){ for(let i=0;i<f.chunks;i++) await del(ppath("blobs/"+f.id+"_"+i)) }
     await del(ppath("files/"+f.id)); await loadProjectData(S.pid); render(); toast("File eliminato")}));
@@ -5561,7 +5580,7 @@ async function hydrateThumbs(host,files){
   for(const f of csvs){
     const box=$('[data-xls="'+f.id+'"]',host); if(!box) continue;
     try{
-      const txt=(await (await fileBlob(f)).text()).replace(/^﻿/,"");
+      const txt=(await (await fileBlob(f)).text()).replace(/^Ôªø/,"");
       const sep=(txt.split("\n")[0]||"").indexOf(";")>=0?";":",";
       const rows=txt.split(/\r?\n/).slice(0,6).filter(Boolean).map(l=>l.split(sep).map(c=>c.replace(/^"|"$/g,"")));
       if(!rows.length){ box.remove(); continue }
@@ -5574,7 +5593,7 @@ async function hydrateThumbs(host,files){
 function previewFile(f){
   const ex=fileExt(f);
   const body=el("div");
-  body.innerHTML='<div class="pvwrap"><div class="pvload"><div class="spin"></div>Carico l\'anteprima…</div></div>';
+  body.innerHTML='<div class="pvwrap"><div class="pvload"><div class="spin"></div>Carico l\'anteprima‚Ä¶</div></div>';
   const wrap=$(".pvwrap",body);
   const mo=modal({title:f.name,wide:true,body:body,ok:null,cancel:"Chiudi"});
   const dl=el("button","btn btn-sm"); dl.innerHTML=IC.dl+"Scarica";
@@ -5588,9 +5607,9 @@ function previewFile(f){
       } else if(ex==="pdf"){
         const doc=await getPdf(f);
         wrap.innerHTML='<div class="pvpdf"><canvas id="pvc"></canvas></div>'+
-          '<div class="pvnav"><button class="btn btn-sm" id="pvp">‹</button>'+
+          '<div class="pvnav"><button class="btn btn-sm" id="pvp">‚Äπ</button>'+
           '<span class="mono" id="pvn"></span>'+
-          '<button class="btn btn-sm" id="pvx">›</button></div>';
+          '<button class="btn btn-sm" id="pvx">‚Ä∫</button></div>';
         let pg=1;
         const draw=async()=>{ await renderPdfPage(doc,pg,$("#pvc",wrap),980);
           $("#pvn",wrap).textContent="Pagina "+pg+" di "+doc.numPages };
@@ -5607,9 +5626,9 @@ function previewFile(f){
           '</tbody></table></div>'+
           '<p class="dim" style="font-size:11.5px;margin-top:8px">Anteprima del primo foglio'+
           (d.names&&d.names.length>1?' ("'+esc(d.names[0])+'" di '+d.names.length+' fogli)':'')+
-          ' · prime '+rows.length+' righe. Scarica il file per lavorarci in Excel.</p>';
+          ' ¬∑ prime '+rows.length+' righe. Scarica il file per lavorarci in Excel.</p>';
       } else if(TEXT_EXT.indexOf(ex)>=0){
-        const txt=(await (await fileBlob(f)).text()).replace(/^﻿/,"");
+        const txt=(await (await fileBlob(f)).text()).replace(/^Ôªø/,"");
         if(ex==="csv"){
           const sep=(txt.split("\n")[0]||"").indexOf(";")>=0?";":",";
           const rows=txt.split(/\r?\n/).slice(0,60).filter(Boolean).map(l=>l.split(sep).map(c=>c.replace(/^"|"$/g,"")));
@@ -5621,18 +5640,18 @@ function previewFile(f){
         } else wrap.innerHTML='<pre class="pvtext">'+esc(txt.slice(0,20000))+'</pre>';
       } else {
         wrap.innerHTML='<div class="empty"><div class="big">Anteprima non disponibile</div>'+
-          'Questo formato si apre solo con l\'applicazione dedicata: usa «Scarica».</div>';
+          'Questo formato si apre solo con l\'applicazione dedicata: usa ¬´Scarica¬ª.</div>';
       }
     }catch(e){
       wrap.innerHTML='<div class="empty"><div class="big">Anteprima non riuscita</div>'+
-        'Non è stato possibile generare l\'anteprima di questo file. Puoi comunque scaricarlo.</div>';
+        'Non √® stato possibile generare l\'anteprima di questo file. Puoi comunque scaricarlo.</div>';
     }
   })();
 }
 
 
 /* ======================================================================
-   v12 — caricamento a gruppi con descrizione
+   v12 ‚Äî caricamento a gruppi con descrizione
    ====================================================================== */
 function uploadModal(list,p){
   if(!canWrite()){toast("Non hai i permessi per caricare file",true);return}
@@ -5648,12 +5667,12 @@ function uploadModal(list,p){
     '<p class="dim" style="font-size:11.5px;margin:-4px 0 12px">Facoltativa: descrive tutti i file di questo caricamento '+
     'e li tiene raggruppati nell\'archivio.</p>'+
     '<div class="eyebrow" style="margin-bottom:8px">'+list.length+' file'+
-      (imgs?' · '+imgs+(imgs===1?' immagine':' immagini'):'')+'</div>'+
+      (imgs?' ¬∑ '+imgs+(imgs===1?' immagine':' immagini'):'')+'</div>'+
     '<div class="uplist">'+list.slice(0,40).map(f=>'<div class="uprow">'+
       '<span class="ux" style="color:'+extColor(extOf(f.name))+'">'+esc((extOf(f.name)||"?").toUpperCase())+'</span>'+
       '<span class="un">'+esc(f.name)+'</span>'+
       '<span class="us">'+sizeStr(f.size)+'</span></div>').join("")+
-      (list.length>40?'<div class="dim" style="font-size:11.5px;padding:6px 2px">…e altri '+(list.length-40)+' file</div>':'')+
+      (list.length>40?'<div class="dim" style="font-size:11.5px;padding:6px 2px">‚Ä¶e altri '+(list.length-40)+' file</div>':'')+
     '</div>';
   modal({title:"Carica documenti",wide:true,body:b,ok:"Carica "+list.length+(list.length===1?" file":" file"),
     onOk:async(body)=>{
@@ -5672,7 +5691,7 @@ async function uploadFiles(list,p,opts){
   const note=opts.note||"";
   const at=new Date().toISOString();
   let ok=0;
-  toast("Carico "+list.length+(list.length===1?" file…":" file…"));
+  toast("Carico "+list.length+(list.length===1?" file‚Ä¶":" file‚Ä¶"));
   for(const file of list){
     const ex=extOf(file.name);
     const type=ASSET_TYPES[ex];
@@ -5698,7 +5717,7 @@ async function uploadFiles(list,p,opts){
   if(ok) await patch("projects/"+p.id,{lastDocAt:at,lastDocBy:S.me.id,
     lastDocName:note||(list[0]?String(list[0].name).slice(0,60):"")});
   await loadProjects(); await loadProjectData(S.pid); render();
-  toast(ok+(ok===1?" file caricato":" file caricati")+(note?" · "+note:""));
+  toast(ok+(ok===1?" file caricato":" file caricati")+(note?" ¬∑ "+note:""));
 }
 function batchModal(p,batch,files){
   const b=el("div");
@@ -5723,7 +5742,7 @@ function docGroups(files){
 
 
 /* ======================================================================
-   v13 — sottocartelle per i gruppi, nome e descrizione per ogni file
+   v13 ‚Äî sottocartelle per i gruppi, nome e descrizione per ogni file
    ====================================================================== */
 const SEP=" / ";
 const parentOf=f=>f.indexOf(SEP)>=0?f.slice(0,f.indexOf(SEP)):"";
@@ -5757,14 +5776,14 @@ function uploadModal(list,p){
   b.innerHTML=
     '<div class="f2">'+
       sel("uf_fold","Cartella",cur,roots.map(x=>[x,x]))+
-      '<div class="field"><label for="uf_grp">Gruppo / sottocartella'+(imgs?' <span style="color:var(--accent)">·  obbligatorio</span>':'')+'</label>'+
+      '<div class="field"><label for="uf_grp">Gruppo / sottocartella'+(imgs?' <span style="color:var(--accent)">¬∑  obbligatorio</span>':'')+'</label>'+
         '<input class="inp" id="uf_grp" list="uf_dl" placeholder="es. STATO FINE DEMOLIZIONI" value="'+
         esc(parentOf(S.folder)?leafOf(S.folder):"")+'">'+
         '<datalist id="uf_dl"></datalist></div>'+
     '</div>'+
     '<p class="dim" style="font-size:11.5px;margin:-4px 0 14px" id="uf_hint"></p>'+
     '<div class="eyebrow" style="margin-bottom:8px">'+list.length+' file'+
-      (imgs?' · '+imgs+(imgs===1?' immagine':' immagini'):'')+' · nome e descrizione modificabili</div>'+
+      (imgs?' ¬∑ '+imgs+(imgs===1?' immagine':' immagini'):'')+' ¬∑ nome e descrizione modificabili</div>'+
     '<div class="uplist" id="uf_list"></div>';
   const fillDL=()=>{
     const par=$("#uf_fold",b).value;
@@ -5817,7 +5836,7 @@ async function uploadFiles(items,p,opts){
   const batch=opts.batch||uid("bt");
   const at=new Date().toISOString();
   let ok=0;
-  toast("Carico "+items.length+" file…");
+  toast("Carico "+items.length+" file‚Ä¶");
   for(const it of items){
     let file=it.file||it;
     if(/^image\//.test(file.type)) file=await shrinkImage(file,1800,0.82);
@@ -5868,13 +5887,13 @@ function fileEditModal(f,p){
   modal({title:"Scheda del documento",body:b,ok:"Salva",
     danger:canWrite()?"Elimina":null,
     onDelete:(body,close)=>{
-      confirmBox("Elimina documento","Eliminare «"+f.name+"»? L'operazione non è reversibile.",
+      confirmBox("Elimina documento","Eliminare ¬´"+f.name+"¬ª? L'operazione non √® reversibile.",
         "Elimina definitivamente",async()=>{ close(); await deleteFile(f) });
       return false;
     },
     onOk:async(body)=>{
       const nm=withExt($("#fe_name",body).value.trim(),fx);
-      if(!nm||nm==="."+fx){toast("Il nome non può essere vuoto",true);return false}
+      if(!nm||nm==="."+fx){toast("Il nome non pu√≤ essere vuoto",true);return false}
       if(!await patch(ppath("files/"+f.id),{name:nm,ext:fx,desc:$("#fe_desc",body).value.trim(),
         folder:$("#fe_fold",body).value})) return false;
       await loadProjectData(S.pid); render(); toast("Documento aggiornato"); return true;
@@ -5885,7 +5904,7 @@ function newFolderModal(p){
   const roots=orderFolders(all.filter(canFolder)).filter(f=>!parentOf(f));
   const b=el("div");
   b.innerHTML='<div class="f2">'+
-    sel("nf_par","Dentro la cartella",parentOf(S.folder)||S.folder,[["","— cartella principale —"]].concat(roots.map(x=>[x,x])))+
+    sel("nf_par","Dentro la cartella",parentOf(S.folder)||S.folder,[["","‚Äî cartella principale ‚Äî"]].concat(roots.map(x=>[x,x])))+
     fld("nf_name","Nome","text","","placeholder=\"es. STATO FINE DEMOLIZIONI\"")+'</div>'+
     '<p class="dim" style="font-size:11.5px">Le sottocartelle servono a tenere insieme i gruppi di foto o documenti di una stessa fase.</p>';
   modal({title:"Nuova cartella",body:b,ok:"Crea",onOk:async(body)=>{
@@ -5914,10 +5933,10 @@ function viewDocs(sc,p){
   const nNew=visFiles.filter(isNewDoc).length;
   const page=el("div","page");
   page.innerHTML='<div class="page-head"><div><h1>Documenti</h1>'+
-    '<div class="sub">'+visFiles.length+' file · '+folders.length+' cartelle · '+
+    '<div class="sub">'+visFiles.length+' file ¬∑ '+folders.length+' cartelle ¬∑ '+
     sizeStr(visFiles.reduce((a,x)=>a+N(x.size),0))+' di archivio'+
-    (nNew?' · <b style="color:var(--accent)">'+nNew+' nuovi</b>':'')+
-    (hidden?' <span class="dim">· '+hidden+' non accessibili</span>':'')+'</div></div><div class="sp"></div>'+
+    (nNew?' ¬∑ <b style="color:var(--accent)">'+nNew+' nuovi</b>':'')+
+    (hidden?' <span class="dim">¬∑ '+hidden+' non accessibili</span>':'')+'</div></div><div class="sp"></div>'+
     (canWrite()?'<div class="row"><button class="btn btn-sm" id="d_nf">'+IC.plus+'Cartella</button>'+
       '<button class="btn btn-pri btn-sm" id="d_up">'+IC.up+'Carica file</button></div>':'')+'</div>'+
     '<div class="fold"><div class="fold-side" id="fs"></div><div class="fold-main">'+
@@ -5961,8 +5980,8 @@ function viewDocs(sc,p){
     if(g.files.length>1||g.note){
       const h=el("div","dg-h");
       h.innerHTML='<b>'+esc(g.note||("Caricamento del "+fmtD(String(g.at||"").slice(0,10))))+'</b>'+
-        '<span>'+g.files.length+' file'+(g.note?' · '+fmtD(String(g.at||"").slice(0,10)):'')+
-        ' · '+esc(uploaderName(g.files[0]))+'</span>';
+        '<span>'+g.files.length+' file'+(g.note?' ¬∑ '+fmtD(String(g.at||"").slice(0,10)):'')+
+        ' ¬∑ '+esc(uploaderName(g.files[0]))+'</span>';
       wrap.appendChild(h);
     }
     const grid=el("div","fgrid");
@@ -5993,8 +6012,8 @@ function fileTip(f){
     tipRow("Tipo",(ex||"file").toUpperCase())+
     tipRow("Dimensione",sizeStr(f.size))+
     tipRow("Caricato il",fmtDL(String(f.at||"").slice(0,10)))+
-    (uploaderName(f)!=="—"?tipRow("Da",uploaderName(f)):"")+
-    tipRow("Cartella",leafOf(f.folder||"")||"—")+
+    (uploaderName(f)!=="‚Äî"?tipRow("Da",uploaderName(f)):"")+
+    tipRow("Cartella",leafOf(f.folder||"")||"‚Äî")+
     '<div class="sep"></div>'+
     '<div class="r"><span style="color:var(--accent)">'+
       (canPreview(f)?"Clicca per l'anteprima":"Scarica per aprirlo")+'</span>'+
@@ -6014,8 +6033,8 @@ function fileCard(f,p){
     '</div>'+
     '<div class="meta"><div class="n" title="'+esc(f.name)+'">'+esc(f.name)+'</div>'+
     (f.desc?'<div class="d">'+esc(f.desc)+'</div>':'<div class="d dim">senza descrizione</div>')+
-    '<div class="s">'+sizeStr(f.size)+' · '+fmtD(String(f.at||"").slice(0,10))+'</div>'+
-    (uploaderName(f)!=="—"?'<div class="up"><span class="av">'+esc(initials(uploaderName(f)))+'</span>'+
+    '<div class="s">'+sizeStr(f.size)+' ¬∑ '+fmtD(String(f.at||"").slice(0,10))+'</div>'+
+    (uploaderName(f)!=="‚Äî"?'<div class="up"><span class="av">'+esc(initials(uploaderName(f)))+'</span>'+
       esc(uploaderName(f))+'</div>':'')+'</div>'+
     '<div class="fa">'+
     (prev?'<button class="btn btn-xs" data-open>Anteprima</button>':'')+
@@ -6027,7 +6046,7 @@ function fileCard(f,p){
   const ed=$("[data-ed]",c); if(ed) ed.addEventListener("click",()=>fileEditModal(f,p||P()));
   const rm=$("[data-rm]",c);
   if(rm) rm.addEventListener("click",()=>confirmBox("Elimina documento",
-    "Eliminare «"+f.name+"»? L'operazione non è reversibile.","Elimina definitivamente",
+    "Eliminare ¬´"+f.name+"¬ª? L'operazione non √® reversibile.","Elimina definitivamente",
     async()=>{ await deleteFile(f) }));
   const th=$(".thumb",c);
   if(prev){ th.style.cursor="zoom-in"; th.addEventListener("click",()=>previewFile(f)) }
@@ -6039,7 +6058,7 @@ function fileCard(f,p){
 
 
 /* ======================================================================
-   FIREBASE — autenticazione, database e file (versione web autonoma)
+   FIREBASE ‚Äî autenticazione, database e file (versione web autonoma)
    ====================================================================== */
 const ADMIN_EMAIL="alejjaloi@gmail.com";   /* stesso valore nelle regole Firestore */
 let FB=null, FBAUTH=null, FBDB=null, FBSECOND=null;
@@ -6152,11 +6171,11 @@ function renderGate(){
   const r=$("#root");
   r.innerHTML='<div id="gate"><form class="gate-card" id="lf" autocomplete="on">'+
     '<div class="mark"><div class="mark-glyph">RE</div><div><div class="mark-name">REAL ESTATE PJT</div>'+
-    '<div class="mark-sub">Compro · Ristrutturo · Vendo</div></div></div>'+
+    '<div class="mark-sub">Compro ¬∑ Ristrutturo ¬∑ Vendo</div></div></div>'+
     '<h3 style="font-size:17px;margin-bottom:4px">Accedi alla piattaforma</h3>'+
     '<p class="muted" style="font-size:12.5px;margin-bottom:20px">Gestione integrata delle operazioni immobiliari.</p>'+
     '<div class="field"><label for="li_email">Email</label><input class="inp" id="li_email" type="email" data-nocase autocomplete="username" placeholder="nome@dominio.it"></div>'+
-    '<div class="field"><label for="li_pass">Password</label><input class="inp" id="li_pass" type="password" autocomplete="current-password" placeholder="••••••••"></div>'+
+    '<div class="field"><label for="li_pass">Password</label><input class="inp" id="li_pass" type="password" autocomplete="current-password" placeholder="‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢"></div>'+
     '<button class="btn btn-pri btn-w" type="submit" id="li_go" style="margin-top:8px">Entra</button>'+
     '<div id="li_err" class="gate-err hide"></div>'+
     '<div class="gate-foot"><button type="button" class="mini-link" id="li_reset">Ho dimenticato la password</button>'+
@@ -6165,7 +6184,7 @@ function renderGate(){
   const err=m=>{const b=$("#li_err");b.innerHTML=m;b.classList.remove("hide")};
   $("#lf").addEventListener("submit",async ev=>{
     ev.preventDefault(); $("#li_err").classList.add("hide");
-    const b=$("#li_go"); b.disabled=true; b.textContent="Verifica…";
+    const b=$("#li_go"); b.disabled=true; b.textContent="Verifica‚Ä¶";
     await tryLogin($("#li_email").value,$("#li_pass").value,err);
     if($("#li_go")){ b.disabled=false; b.textContent="Entra" }
   });
@@ -6173,7 +6192,7 @@ function renderGate(){
     const em=String($("#li_email").value||"").trim().toLowerCase();
     if(!em){ err("Scrivi prima la tua email, poi premi di nuovo."); return }
     try{ await FBAUTH.sendPasswordResetEmail(em); toast("Email di reimpostazione inviata a "+em) }
-    catch(e){ err("Non è stato possibile inviare l'email di reimpostazione.") }
+    catch(e){ err("Non √® stato possibile inviare l'email di reimpostazione.") }
   });
   setTimeout(()=>{const e=$("#li_email");if(e)e.focus()},60);
 }
@@ -6215,7 +6234,7 @@ function importModal(){
   let seed=null;
   const mo=modal({title:"Importa dati",wide:true,body:b,ok:"Importa",onOk:async()=>{
     if(!seed){ toast("Scegli prima il file",true); return false }
-    const btn=$(".modal [data-ok]"); if(btn) btn.textContent="Importo…";
+    const btn=$(".modal [data-ok]"); if(btn) btn.textContent="Importo‚Ä¶";
     try{ await runImport(seed); toast("Importazione completata"); return true }
     catch(e){ toast("Importazione non riuscita: "+(e&&e.message||"errore"),true); return false }
   }});
@@ -6234,7 +6253,7 @@ function importModal(){
         '<div class="split tot"><span class="l">Operazioni da importare</span><span class="v">'+np+'</span></div>'+
         (miss?'<p class="dim" style="font-size:11.5px;margin-top:10px"><b style="color:var(--warn)">'+miss+
           ' profili non esistono ancora</b>: puoi importare comunque, ma i riferimenti a quelle persone resteranno scollegati '+
-          'finché non crei il profilo con la stessa email e reimporti.</p>':'');
+          'finch√© non crei il profilo con la stessa email e reimporti.</p>':'');
     }catch(e){ $("#im_rep",b).innerHTML='<div class="gate-err">File non valido: '+esc(e.message||"")+'</div>'; seed=null }
   });
   void mo;
@@ -6276,7 +6295,7 @@ async function runImport(seed){
 
 /* ---------- backup completo (solo amministratore) ---------- */
 async function exportBackup(){
-  toast("Preparo il backup…");
+  toast("Preparo il backup‚Ä¶");
   const pull=async(path)=>{ try{ const q=await S.db.collection(path).get();
     return q.docs.map(d=>Object.assign({id:d.id},d.data())) }catch(e){ return [] } };
   const accs=await pull("accounts");
@@ -6295,12 +6314,12 @@ async function exportBackup(){
   }
   const json=JSON.stringify(out);
   saveBlob("backup-real-estate-pjt-"+iso(new Date())+".json",new Blob([json],{type:"application/json"}));
-  toast("Backup scaricato · "+sizeStr(json.length));
+  toast("Backup scaricato ¬∑ "+sizeStr(json.length));
 }
 
 
 /* ======================================================================
-   v14 — spaccato per socio nei tooltip, totali mensili leggibili,
+   v14 ‚Äî spaccato per socio nei tooltip, totali mensili leggibili,
           dettaglio delle uscite previste, pagamenti ricorrenti mensili
    ====================================================================== */
 
@@ -6330,16 +6349,16 @@ function tipSoci(p,amount,paidBy,titolo){
   const rows=quotaSplit(p,amount,paidBy);
   if(!rows.length||!N(amount)) return "";
   if(rows[0].solo) return '<div class="sep"></div>'+tipHead(titolo||"A carico di un solo socio")+
-    tipRow(rows[0].name+" · 100%",VE(rows[0].val));
+    tipRow(rows[0].name+" ¬∑ 100%",VE(rows[0].val));
   return '<div class="sep"></div>'+tipHead(titolo||"Quota per socio")+
-    rows.map(r=>tipRow(r.name+" · "+pct(r.quota,Math.abs(r.quota%1)>0.05?1:0),VE(r.val))).join("");
+    rows.map(r=>tipRow(r.name+" ¬∑ "+pct(r.quota,Math.abs(r.quota%1)>0.05?1:0),VE(r.val))).join("");
 }
 function tipSociAggr(p,items,titolo){
   const rows=sociAggr(p,items);
   if(!rows.length) return "";
   const tot=rows.reduce((s,r)=>s+r.val,0)||1;
   return '<div class="sep"></div>'+tipHead(titolo||"Quota per socio")+
-    rows.map(r=>{const q=r.val/tot*100; return tipRow(r.name+" · "+pct(q,Math.abs(q%1)>0.05?1:0),VE(r.val))}).join("");
+    rows.map(r=>{const q=r.val/tot*100; return tipRow(r.name+" ¬∑ "+pct(q,Math.abs(q%1)>0.05?1:0),VE(r.val))}).join("");
 }
 
 /* ---------- 1. vignetta della barra: con quota per socio ---------- */
@@ -6374,7 +6393,7 @@ function planTip(it,p){
   return '<div class="t"><i style="background:'+c+'"></i>'+esc(it.label||it.supplier||"Pagamento")+'</div>'+
     (it.recId?'<div class="r"><span>Serie mensile</span><span>rata '+(N(it.recIdx)||1)+' di '+(N(it.recTot)||1)+'</span></div>':'')+
     (it.supplier?tipRow("Fornitore",it.supplier):"")+
-    tipRow("Voce di costo",PLCAT[it.cat]||it.cat||"—")+
+    tipRow("Voce di costo",PLCAT[it.cat]||it.cat||"‚Äî")+
     tipRow("Importo",VE(it.amount),true)+
     tipRow("Peso sul piano",pct(peso,1))+
     '<div class="sep"></div>'+
@@ -6460,9 +6479,9 @@ function drawPayGantt(host,p){
         '<span style="width:8px;height:8px;border-radius:50%;background:'+col(it)+';flex:none"></span>'+
         '<span class="nm"'+(canWrite()?' data-pe="'+it.id+'" style="cursor:pointer"':'')+'>'+
           esc(it.label||it.supplier||"Pagamento")+
-          (it.recId?'<span class="dim" style="font-weight:600"> · '+(N(it.recIdx)||1)+'/'+(N(it.recTot)||1)+'</span>':'')+
-          (it.supplier?'<span class="dim" style="font-weight:500"> · '+esc(it.supplier)+'</span>':'')+
-          (who?'<span class="dim" style="font-weight:500"> · '+esc(who.name)+'</span>':'')+'</span>'+
+          (it.recId?'<span class="dim" style="font-weight:600"> ¬∑ '+(N(it.recIdx)||1)+'/'+(N(it.recTot)||1)+'</span>':'')+
+          (it.supplier?'<span class="dim" style="font-weight:500"> ¬∑ '+esc(it.supplier)+'</span>':'')+
+          (who?'<span class="dim" style="font-weight:500"> ¬∑ '+esc(who.name)+'</span>':'')+'</span>'+
         (canWrite()?'<span class="hnd"><button class="btn btn-xs" data-pe="'+it.id+'">'+IC.pen+'</button>'+
           '<button class="btn btn-xs" data-pd="'+it.id+'">'+IC.trash+'</button></span>':'')+
         '<span class="wk" style="width:70px;text-align:right;font-weight:700;color:var(--ink);display:block">'+VE(it.amount)+'</span></div></div>'}).join("")+
@@ -6486,13 +6505,13 @@ function drawPayGantt(host,p){
         '<div class="mon-tot">'+months.map((mm,i)=>'<div data-mt="'+i+'" style="width:'+(mm.span*COL)+'px"'+
           (mm.sum?' class="has"':'')+'>'+
           (mm.span>=2?'<u>'+esc(mm.short)+'</u>':'')+
-          '<b>'+(mm.sum?VE(mm.sum):"—")+'</b></div>').join("")+'</div>'+
+          '<b>'+(mm.sum?VE(mm.sum):"‚Äî")+'</b></div>').join("")+'</div>'+
         (todayX>=0&&todayX<=W?'<div class="g-today" style="left:'+todayX+'px;top:0;bottom:0"></div>':'')+
       '</div></div></div></div>'+
     '<div class="legend"><span class="li"><span class="sw" style="background:#6E7D8C"></span>Previsto</span>'+
     '<span class="li"><span class="sw" style="background:#C4712B"></span>Confermato</span>'+
     '<span class="li"><span class="sw" style="background:#3C7A57"></span>Pagato</span>'+
-    '<span class="li" style="margin-left:auto">Trascina una barra per spostare la settimana · passa sopra per lo spaccato per socio</span></div></div>';
+    '<span class="li" style="margin-left:auto">Trascina una barra per spostare la settimana ¬∑ passa sopra per lo spaccato per socio</span></div></div>';
   keepScroll(host,"pay",R);
   bindPayTips(host,R,p);
   const ar=$("#pl_addrow",host); if(ar) ar.addEventListener("click",()=>planModal(null));
@@ -6500,7 +6519,7 @@ function drawPayGantt(host,p){
     const it=S.plan.find(x=>x.id===b.dataset.pe); if(it) planModal(it)}));
   $$("[data-pd]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
     const it=S.plan.find(x=>x.id===b.dataset.pd); if(!it) return;
-    confirmBox("Elimina pagamento","Rimuovere «"+(it.label||it.supplier||"pagamento")+"» dal piano di cassa?","Elimina",
+    confirmBox("Elimina pagamento","Rimuovere ¬´"+(it.label||it.supplier||"pagamento")+"¬ª dal piano di cassa?","Elimina",
       async()=>{ await del(ppath("plan/"+it.id)); await loadProjectData(S.pid); render(); toast("Rimosso dal piano"); return true })}));
   bindPayDrag(host,R,W,p);
 }
@@ -6558,9 +6577,9 @@ function planModal(it){
   b.innerHTML=
     (it&&it.recId?'<div class="notice" style="margin-bottom:14px">'+IC.ref+
       '<div>Rata <b>'+(N(it.recIdx)||1)+' di '+(N(it.recTot)||1)+'</b> di una serie mensile ('+sib.length+' rate nel piano).</div></div>':'')+
-    '<div class="f2">'+fld("q_lab","Voce","text",it?it.label:"","placeholder=\"es. 2° SAL impresa\"")+
+    '<div class="f2">'+fld("q_lab","Voce","text",it?it.label:"","placeholder=\"es. 2¬∞ SAL impresa\"")+
       fld("q_sup","Fornitore","text",it?it.supplier:"")+'</div>'+
-    '<div class="f3">'+fld("q_amt","Importo €","number",it?it.amount:"",'step="100"')+
+    '<div class="f3">'+fld("q_amt","Importo ‚Ç¨","number",it?it.amount:"",'step="100"')+
       fld("q_date","Settimana di pagamento","date",it?it.date:iso(monday(new Date())))+
       fld("q_wk","Durata (settimane)","number",it?(N(it.weeks)||1):1,'min="1" max="26"')+'</div>'+
     '<div class="f2">'+sel("q_st","Stato",it?it.status:"previsto",PSTAT)+
@@ -6574,7 +6593,7 @@ function planModal(it){
       'Per le uscite fisse: rata del finanziamento, canoni, utenze. Crea una rata al mese a partire dalla data indicata.</span></span></label>'+
       '<div id="q_recbox" class="hide" style="margin-top:6px">'+
       '<div class="f2">'+fld("q_recn","Per quanti mesi","number",12,'min="2" max="120"')+
-        '<div class="field"><label>Totale della serie</label><input class="inp" id="q_rectot" disabled value="—"></div>'+
+        '<div class="field"><label>Totale della serie</label><input class="inp" id="q_rectot" disabled value="‚Äî"></div>'+
       '</div></div>':'')+
     (it&&it.recId?'<label class="perm" style="margin-top:6px"><input type="checkbox" id="q_all" data-nocase>'+
       '<span class="t">Applica a questa rata e a tutte le successive'+
@@ -6588,7 +6607,7 @@ function planModal(it){
     box.classList.toggle("hide",!ck.checked);
     const n=clamp(N($("#q_recn",b).value)||12,2,120);
     const tot=$("#q_rectot",b);
-    if(tot) tot.value=ck.checked?(n+" rate × "+eur0(N($("#q_amt",b).value))+" = "+eur0(n*N($("#q_amt",b).value))):"—";
+    if(tot) tot.value=ck.checked?(n+" rate √ó "+eur0(N($("#q_amt",b).value))+" = "+eur0(n*N($("#q_amt",b).value))):"‚Äî";
   };
   const rc=$("#q_rec",b); if(rc) rc.addEventListener("change",refreshRec);
   const rn=$("#q_recn",b); if(rn) rn.addEventListener("input",refreshRec);
@@ -6636,7 +6655,7 @@ function planModal(it){
           if(!await put(ppath("plan/"+uid("q")),row)) return false;
         }
         await loadProjectData(S.pid); render();
-        toast(n+" rate mensili pianificate · "+eur0(n*f.amount)+" in totale");
+        toast(n+" rate mensili pianificate ¬∑ "+eur0(n*f.amount)+" in totale");
         return true;
       }
 
@@ -6682,7 +6701,7 @@ function bindPayDrag(host,R,W,p){
       const w=Math.round(parseFloat(bar.style.left)/COL);
       const nd=iso(addD(R.start,w*7));
       it.date=nd; await patch(ppath("plan/"+it.id),{date:nd});
-      render(); toast((it.label||"Pagamento")+" → settimana del "+fmtD(nd));
+      render(); toast((it.label||"Pagamento")+" ‚Üí settimana del "+fmtD(nd));
     });
     bar.addEventListener("pointercancel",()=>{on=false;bar.classList.remove("drag")});
     bar.addEventListener("dblclick",()=>planModal(it));
@@ -6691,7 +6710,7 @@ function bindPayDrag(host,R,W,p){
 
 
 /* ======================================================================
-   v15 — una sola riga per le serie mensili, con una barra per ogni rata
+   v15 ‚Äî una sola riga per le serie mensili, con una barra per ogni rata
    ====================================================================== */
 function planGroups(){
   const groups=[], by={};
@@ -6720,14 +6739,14 @@ function seriesTip(g,p){
   return '<div class="t"><i style="background:'+g.col+'"></i>'+esc(it.label||it.supplier||"Pagamento")+'</div>'+
     '<div class="r"><span>Serie mensile</span><span>'+g.n+' rate</span></div>'+
     (it.supplier?tipRow("Fornitore",it.supplier):"")+
-    tipRow("Voce di costo",PLCAT[it.cat]||it.cat||"—")+
-    tipRow(g.min===g.max?"Rata mensile":"Rata · da / a",
-           g.min===g.max?VE(g.min):(VE(g.min)+" → "+VE(g.max)))+
+    tipRow("Voce di costo",PLCAT[it.cat]||it.cat||"‚Äî")+
+    tipRow(g.min===g.max?"Rata mensile":"Rata ¬∑ da / a",
+           g.min===g.max?VE(g.min):(VE(g.min)+" ‚Üí "+VE(g.max)))+
     tipRow("Totale della serie",VE(g.tot),true)+
     '<div class="sep"></div>'+
     tipRow("Prima rata",fmtDL(it.date))+
     tipRow("Ultima rata",fmtDL(g.last.date))+
-    '<div class="r"><span>Stato</span><span>'+g.paid+' pagate · '+g.conf+' confermate · '+(g.n-g.paid-g.conf)+' previste</span></div>'+
+    '<div class="r"><span>Stato</span><span>'+g.paid+' pagate ¬∑ '+g.conf+' confermate ¬∑ '+(g.n-g.paid-g.conf)+' previste</span></div>'+
     tipSociAggr(p,g.items,"Quota totale per socio")+
     (it.note?'<div class="sep"></div><div class="r"><span style="white-space:normal;max-width:240px;line-height:1.45">'+
       esc(it.note)+'</span><span></span></div>':'');
@@ -6803,12 +6822,12 @@ function drawPayGantt(host,p){
     const who=(p.partners||[]).find(x=>x.id===it.paidBy);
     const nm='<span class="nm"'+(canWrite()?' data-pe="'+it.id+'" style="cursor:pointer"':'')+'>'+
       esc(it.label||it.supplier||"Pagamento")+
-      (g.rec?'<span class="recbadge">mensile ×'+g.n+'</span>':'')+
-      (it.supplier?'<span class="dim" style="font-weight:500"> · '+esc(it.supplier)+'</span>':'')+
-      (who?'<span class="dim" style="font-weight:500"> · '+esc(who.name)+'</span>':'')+'</span>';
+      (g.rec?'<span class="recbadge">mensile √ó'+g.n+'</span>':'')+
+      (it.supplier?'<span class="dim" style="font-weight:500"> ¬∑ '+esc(it.supplier)+'</span>':'')+
+      (who?'<span class="dim" style="font-weight:500"> ¬∑ '+esc(who.name)+'</span>':'')+'</span>';
     const imp=g.rec
       ?'<span class="wk two" style="width:82px;text-align:right;font-weight:700;color:var(--ink)">'+
-         (g.min===g.max?VE(g.min):VE(g.min)+"–"+VE(g.max))+'<small>tot '+VE(g.tot)+'</small></span>'
+         (g.min===g.max?VE(g.min):VE(g.min)+"‚Äì"+VE(g.max))+'<small>tot '+VE(g.tot)+'</small></span>'
       :'<span class="wk" style="width:82px;text-align:right;font-weight:700;color:var(--ink);display:block">'+VE(it.amount)+'</span>';
     const hnd=canWrite()?'<span class="hnd"><button class="btn btn-xs" data-pe="'+it.id+'">'+IC.pen+'</button>'+
       '<button class="btn btn-xs" '+(g.rec?'data-pgd="'+g.key+'"':'data-pd="'+it.id+'"')+'>'+IC.trash+'</button></span>':'';
@@ -6841,13 +6860,13 @@ function drawPayGantt(host,p){
         '<div class="mon-tot">'+months.map((mm,i)=>'<div data-mt="'+i+'" style="width:'+(mm.span*COL)+'px"'+
           (mm.sum?' class="has"':'')+'>'+
           (mm.span>=2?'<u>'+esc(mm.short)+'</u>':'')+
-          '<b>'+(mm.sum?VE(mm.sum):"—")+'</b></div>').join("")+'</div>'+
+          '<b>'+(mm.sum?VE(mm.sum):"‚Äî")+'</b></div>').join("")+'</div>'+
         (todayX>=0&&todayX<=W?'<div class="g-today" style="left:'+todayX+'px;top:0;bottom:0"></div>':'')+
       '</div></div></div></div>'+
     '<div class="legend"><span class="li"><span class="sw" style="background:#6E7D8C"></span>Previsto</span>'+
     '<span class="li"><span class="sw" style="background:#C4712B"></span>Confermato</span>'+
     '<span class="li"><span class="sw" style="background:#3C7A57"></span>Pagato</span>'+
-    '<span class="li" style="margin-left:auto">Trascina una barra per spostare la settimana · passa sopra per lo spaccato per socio</span></div></div>';
+    '<span class="li" style="margin-left:auto">Trascina una barra per spostare la settimana ¬∑ passa sopra per lo spaccato per socio</span></div></div>';
 
   keepScroll(host,"pay",R);
   bindPayTips(host,R,p);
@@ -6856,12 +6875,12 @@ function drawPayGantt(host,p){
     const it=S.plan.find(x=>x.id===b.dataset.pe); if(it) planModal(it)}));
   $$("[data-pd]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
     const it=S.plan.find(x=>x.id===b.dataset.pd); if(!it) return;
-    confirmBox("Elimina pagamento","Rimuovere «"+(it.label||it.supplier||"pagamento")+"» dal piano di cassa?","Elimina",
+    confirmBox("Elimina pagamento","Rimuovere ¬´"+(it.label||it.supplier||"pagamento")+"¬ª dal piano di cassa?","Elimina",
       async()=>{ await del(ppath("plan/"+it.id)); await loadProjectData(S.pid); render(); toast("Rimosso dal piano"); return true })}));
   $$("[data-pgd]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
     const g=planGroups().find(x=>x.key===b.dataset.pgd); if(!g) return;
     confirmBox("Elimina serie mensile",
-      "Rimuovere tutte le "+g.n+" rate di «"+(g.first.label||g.first.supplier||"pagamento")+"» ("+VE(g.tot)+" in totale)?",
+      "Rimuovere tutte le "+g.n+" rate di ¬´"+(g.first.label||g.first.supplier||"pagamento")+"¬ª ("+VE(g.tot)+" in totale)?",
       "Elimina tutta la serie",
       async()=>{ for(const it of g.items) await del(ppath("plan/"+it.id));
         await loadProjectData(S.pid); render(); toast(g.n+" rate eliminate"); return true })}));
@@ -6902,6 +6921,306 @@ function bindPayTips(host,R,p){
     hook(node,()=>monthTip(p,m));
   });
 }
+
+
+/* ======================================================================
+   v16 ‚Äî Sales/Exit: prezzo al m¬≤, accessori (box, cantina, posto auto)
+          e sensitivit√† del margine sul prezzo al m¬≤
+   ====================================================================== */
+const ACC_PRESET=["BOX AUTO","POSTO AUTO","POSTO MOTO","CANTINA","SOFFITTA","MANSARDA",
+  "TAVERNA","GIARDINO","TERRAZZO","SOLAIO","MAGAZZINO"];
+
+function accList(p){ return ((p&&p.accessories)||[]).filter(a=>a&&(N(a.qty)||N(a.unit))) }
+function accTotal(p){ return accList(p).reduce((s,a)=>s+N(a.qty)*N(a.unit),0) }
+function sqmBase(p,ppsOverride){
+  const pps=ppsOverride==null?N(p&&p.pricePerSqm):N(ppsOverride);
+  return N(p&&p.sqm)*pps;
+}
+function isSqmMode(p){ return !!(p&&p.revMode==="sqm") }
+function revenueOf(p){
+  const u=(p&&p.units)||[];
+  if(u.length) return u.reduce((s,x)=>s+N(x.price),0);
+  const base=isSqmMode(p)?sqmBase(p):N(p&&p.salePrice);
+  return base+accTotal(p);
+}
+/* scenario economico a un dato ricavo (oneri finanziari inclusi) */
+function scenAt(p,m,rev){
+  const fee=feeOn(rev,p);
+  const gross=rev-m.plannedCost-fee-m.finCost;
+  const tax=Math.max(0,gross)*m.taxRate/100;
+  const net=gross-tax;
+  return {rev:rev,fee:fee,gross:gross,tax:tax,net:net,
+    roi:m.capital?net/m.capital*100:0,roiG:m.capital?gross/m.capital*100:0};
+}
+
+/* ---------- impostazione del prezzo di vendita ---------- */
+function priceModal(p){
+  const st={mode:isSqmMode(p)?"sqm":"price",sqm:N(p.sqm),pps:N(p.pricePerSqm),sale:N(p.salePrice)};
+  const acc=((p.accessories)||[]).map(a=>({id:a.id||uid("ac"),name:a.name||"",qty:N(a.qty)||1,unit:N(a.unit)}));
+  const b=el("div");
+  const baseOf=()=>st.mode==="sqm"?st.sqm*st.pps:st.sale;
+  const accOf=()=>acc.reduce((s,a)=>s+N(a.qty)*N(a.unit),0);
+
+  const draw=()=>{
+    b.innerHTML=
+      ((p.units&&p.units.length)?'<div class="notice" style="margin-bottom:12px">'+IC.tag+
+        '<span style="flex:1">Questa operazione ha '+p.units.length+' unit√† in vendita: finch√© restano, il ricavo √® la loro somma. '+
+        'Svuota l\'elenco delle unit√† per usare i valori qui sotto.</span></div>':'')+
+      '<div class="seg2" id="pm_mode">'+
+        '<button type="button" data-m="price"'+(st.mode==="price"?' class="on"':'')+'>Prezzo unico</button>'+
+        '<button type="button" data-m="sqm"'+(st.mode==="sqm"?' class="on"':'')+'>Prezzo al m¬≤</button>'+
+      '</div>'+
+      (st.mode==="sqm"
+        ?'<div class="f2" style="margin-top:12px">'+
+           fld("pm_sqm","Superficie commerciale (m¬≤)","number",st.sqm||"",'step="0.5" min="0" placeholder="es. 120"')+
+           fld("pm_pps","Prezzo al m¬≤ (‚Ç¨)","number",st.pps||"",'step="50" min="0" placeholder="es. 3.500"')+
+         '</div>'
+        :'<div style="margin-top:12px">'+
+           fld("pm_sale","Prezzo di vendita dell'immobile (‚Ç¨)","number",st.sale||"",'step="1000" min="0"')+
+         '</div>')+
+      '<div class="eyebrow" style="margin:18px 0 8px">Accessori venduti a parte</div>'+
+      '<p class="muted" style="font-size:12px;margin-bottom:10px">Box auto, posti auto, cantine: indica quanti sono e il valore di ciascuno. '+
+        'Si sommano al prezzo dell\'immobile.</p>'+
+      '<datalist id="accpreset">'+ACC_PRESET.map(x=>'<option value="'+esc(x)+'">').join("")+'</datalist>'+
+      '<div id="pm_acc"></div>'+
+      '<button class="btn btn-sm" id="pm_add" type="button" style="margin-top:8px">'+IC.plus+'Aggiungi accessorio</button>'+
+      '<div class="pm-tot" id="pm_tot"></div>';
+
+    const host=$("#pm_acc",b);
+    acc.forEach((a,i)=>{
+      const row=el("div","row"); row.style.cssText="gap:7px;margin-bottom:7px;flex-wrap:nowrap;align-items:center";
+      row.innerHTML='<input class="inp" list="accpreset" value="'+esc(a.name)+'" placeholder="es. BOX AUTO" style="flex:1;min-width:0">'+
+        '<input class="inp num" type="number" value="'+(a.qty||"")+'" min="1" step="1" style="width:66px" title="quantit√†">'+
+        '<input class="inp num" type="number" value="'+(a.unit||"")+'" step="500" placeholder="‚Ç¨ cad." style="width:118px">'+
+        '<span class="mono pm-rt" style="width:96px;text-align:right;font-size:12px;font-weight:600">'+eur0(N(a.qty)*N(a.unit))+'</span>'+
+        '<button class="btn btn-xs btn-danger" type="button">'+IC.trash+'</button>';
+      const ins=$$("input",row);
+      const rt=$(".pm-rt",row);
+      const sync=()=>{ rt.textContent=eur0(N(a.qty)*N(a.unit)); tot() };
+      ins[0].addEventListener("input",()=>{a.name=ins[0].value});
+      ins[1].addEventListener("input",()=>{a.qty=N(ins[1].value);sync()});
+      ins[2].addEventListener("input",()=>{a.unit=N(ins[2].value);sync()});
+      $("button",row).addEventListener("click",()=>{acc.splice(i,1);draw()});
+      host.appendChild(row);
+    });
+
+    $$("#pm_mode button",b).forEach(bt=>bt.addEventListener("click",()=>{ st.mode=bt.dataset.m; draw() }));
+    const sq=$("#pm_sqm",b), pp=$("#pm_pps",b), sl=$("#pm_sale",b);
+    if(sq) sq.addEventListener("input",()=>{st.sqm=N(sq.value);tot()});
+    if(pp) pp.addEventListener("input",()=>{st.pps=N(pp.value);tot()});
+    if(sl) sl.addEventListener("input",()=>{st.sale=N(sl.value);tot()});
+    $("#pm_add",b).addEventListener("click",()=>{acc.push({id:uid("ac"),name:"",qty:1,unit:0});draw()});
+    tot();
+  };
+  const tot=()=>{
+    const h=$("#pm_tot",b); if(!h) return;
+    const base=baseOf(), a=accOf();
+    h.innerHTML='<div class="split"><span class="l">'+
+        (st.mode==="sqm"?'Immobile ¬∑ '+(st.sqm||0)+' m¬≤ √ó '+eur0(st.pps)+'/m¬≤':'Immobile ¬∑ prezzo unico')+
+        '</span><span class="v">'+eur0(base)+'</span></div>'+
+      '<div class="split"><span class="l">Accessori ('+acc.filter(x=>N(x.qty)&&N(x.unit)).length+')</span>'+
+        '<span class="v">'+eur0(a)+'</span></div>'+
+      '<div class="split tot"><span class="l">Ricavo di vendita</span><span class="v">'+eur0(base+a)+'</span></div>';
+  };
+  draw();
+
+  modal({title:"Prezzo di vendita",wide:true,body:b,ok:"Salva",onOk:async()=>{
+    const cl=acc.filter(a=>String(a.name||"").trim()||N(a.unit))
+      .map(a=>({id:a.id,name:String(a.name||"").trim().toUpperCase()||"ACCESSORIO",qty:Math.max(1,N(a.qty)||1),unit:N(a.unit)}));
+    const data={revMode:st.mode,accessories:cl};
+    if(st.mode==="sqm"){ data.sqm=st.sqm; data.pricePerSqm=st.pps }
+    else data.salePrice=st.sale;
+    Object.assign(p,data);
+    if(!await patch("projects/"+p.id,data)) return false;
+    render(); toast("Prezzo di vendita aggiornato"); return true;
+  }});
+}
+
+/* ---------- Sales / Exit ---------- */
+function viewSales(sc,p){
+  const m=metrics(p,S.fin,S.tasks);
+  const units=(p.units||[]);
+  const soc=p.entity==="societa";
+  const sqmOn=isSqmMode(p)&&!units.length&&N(p.sqm)>0;
+  const accT=units.length?0:accTotal(p);
+  const scen=[-10,-5,0,5,10].map(d=>Object.assign({d:d},scenAt(p,m,m.rev*(1+d/100))));
+
+  let kpis=kpi("Ricavo previsto",VE(m.rev),IC.tag,
+    units.length?units.length+" unit√†":(sqmOn?N(p.sqm)+" m¬≤ + accessori":"prezzo unico"),"acc");
+  if(sqmOn) kpis+=kpi("Prezzo al m¬≤",VE(p.pricePerSqm),IC.scale,
+    N(p.sqm)+" m¬≤ ¬∑ immobile "+VE(sqmBase(p)),"info");
+  if(canF("s_pl")) kpis+=kpi("Margine lordo",VE(m.gross),IC.trend,"ROI lordo "+pct(m.roiG),m.gross>=0?"good":"bad");
+  if(canF("s_roi")) kpis+=kpi("Imposte stimate",VE(m.taxes),IC.scale,(soc?"IRES+IRAP ":"Plusvalenza ")+pct(m.taxRate,1),"info")+
+    kpi("Margine netto",VE(m.net),IC.euro,"ROI netto "+pct(m.roiN),m.net>=0?"good":"bad");
+
+  /* composizione del ricavo */
+  const comp=(!canF("s_pl")||units.length||(!sqmOn&&!accT))?"":
+    '<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Composizione del ricavo</h3><div class="sp"></div>'+
+      (canWrite()&&canF("s_units")?'<button class="btn btn-sm" id="s_price2">Modifica</button>':'')+'</div><div class="card-p">'+
+      '<div class="split"><span class="l">'+(sqmOn
+        ?'Immobile ¬∑ '+N(p.sqm)+' m¬≤ √ó '+VE(p.pricePerSqm)+'/m¬≤'
+        :'Immobile ¬∑ prezzo unico')+'</span><span class="v">'+
+        VE(sqmOn?sqmBase(p):N(p.salePrice))+'</span></div>'+
+      accList(p).map(a=>'<div class="split"><span class="l">'+esc(a.name)+
+        ' <span class="dim">√ó '+N(a.qty)+' ¬∑ '+VE(a.unit)+' cad.</span></span>'+
+        '<span class="v">'+VE(N(a.qty)*N(a.unit))+'</span></div>').join("")+
+      (accT?'<div class="split"><span class="l">Totale accessori</span><span class="v">'+VE(accT)+'</span></div>':'')+
+      '<div class="split tot"><span class="l">Ricavo di vendita</span><span class="v">'+VE(m.rev)+'</span></div>'+
+      (sqmOn?'<div class="row" style="gap:8px;margin-top:14px">'+
+        '<div style="flex:1;min-width:130px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
+          '<div class="eyebrow">Costo totale al m¬≤</div><div style="font-size:19px;font-weight:800;letter-spacing:-.03em">'+
+          VE(m.totalCost/N(p.sqm))+'</div><div class="dim" style="font-size:11px">costi totali '+VE(m.totalCost)+'</div></div>'+
+        '<div style="flex:1;min-width:130px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
+          '<div class="eyebrow">Pareggio al m¬≤</div><div style="font-size:19px;font-weight:800;letter-spacing:-.03em">'+
+          VE(Math.max(0,breakEven(p,m)-accT)/N(p.sqm))+'</div><div class="dim" style="font-size:11px">sotto questo prezzo si perde capitale</div></div>'+
+      '</div>':'')+
+      '</div></div>';
+
+  const pl=!canF("s_pl")?"":'<div class="card"><div class="card-h"><h3>Conto economico dell\'operazione</h3></div><div class="card-p">'+
+      '<div class="split"><span class="l">Ricavo di vendita'+(sqmOn?' <span class="dim">('+N(p.sqm)+' m¬≤ √ó '+VE(p.pricePerSqm)+(accT?' + accessori':'')+')</span>':(accT?' <span class="dim">(immobile + accessori)</span>':''))+
+        '</span><span class="v">'+VE(m.rev)+'</span></div>'+
+      '<div class="split"><span class="l">Prezzo di acquisto</span><span class="v">‚àí'+VE(m.buy)+'</span></div>'+
+      '<div class="split"><span class="l">Costi di acquisto (notaio, imposte)</span><span class="v">‚àí'+VE(m.buyCosts)+'</span></div>'+
+      '<div class="split"><span class="l">Lavori (budget '+VE(m.works)+' ¬∑ pagato '+VE(m.paid)+')</span><span class="v">‚àí'+VE(m.works)+'</span></div>'+
+      (m.design?'<div class="split"><span class="l">Costi di progetto ¬∑ progettista, DL, pratiche</span>'+
+        '<span class="v">‚àí'+VE(m.design)+'</span></div>':'')+
+      '<div class="split"><span class="l">Altri costi</span><span class="v">‚àí'+VE(m.other)+'</span></div>'+
+      (m.finCost?'<div class="split"><span class="l">Oneri finanziari ¬∑ '+(m.loan?m.loan.monthsToExit+' mesi':'')+' istruttoria, interessi, estinzione'+
+        (m.loan?' <span class="dim">('+eurN(m.debt)+' al '+pct(m.loan.annual,2)+')</span>':'')+
+        '</span><span class="v">‚àí'+eurN(m.finCost)+'</span></div>':'')+
+      '<div class="split"><span class="l">Fee agenzia'+((p.fees&&p.fees.vat)?" (IVA incl.)":"")+'</span><span class="v">‚àí'+VE(m.fee)+'</span></div>'+
+      '<div class="split"><span class="l"><b style="color:var(--ink)">Totale costi dell\'operazione</b></span>'+
+        '<span class="v">‚àí'+VE(m.totalCost)+'</span></div>'+
+      '<div class="split tot"><span class="l">Margine lordo</span><span class="v" style="color:'+(m.gross>=0?"var(--good)":"var(--bad)")+'">'+VE(m.gross)+'</span></div>'+
+      (canF("s_roi")?'<div class="split"><span class="l">'+(soc?"IRES + IRAP":"Imposta su plusvalenza")+' ¬∑ '+pct(m.taxRate,1)+'</span><span class="v" style="color:var(--bad)">‚àí'+VE(m.taxes)+'</span></div>'+
+      '<div class="split tot"><span class="l">Margine netto</span><span class="v" style="color:'+(m.net>=0?"var(--good)":"var(--bad)")+'">'+VE(m.net)+'</span></div>'+
+      '<div class="row" style="gap:8px;margin-top:16px">'+
+        '<div style="flex:1;min-width:130px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
+          '<div class="eyebrow">ROI lordo su capitale proprio</div><div style="font-size:21px;font-weight:800;letter-spacing:-.035em">'+pct(m.roiG)+'</div>'+
+          '<div class="dim" style="font-size:11px">capitale proprio '+VE(m.capital)+'</div></div>'+
+        '<div style="flex:1;min-width:130px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
+          '<div class="eyebrow">ROI netto su capitale proprio</div><div style="font-size:21px;font-weight:800;letter-spacing:-.035em;color:'+(m.roiN>=0?"var(--good)":"var(--bad)")+'">'+pct(m.roiN)+'</div>'+
+          '<div class="dim" style="font-size:11px">'+(m.debt?'capitale proprio '+eurN(m.capital)+' ¬∑ leva '+pct(m.ltc,0):'ROI su costi '+pct(m.roiCost))+'</div></div>'+
+      '</div>':'')+'</div></div>';
+
+  /* sensitivit√† sul prezzo al m¬≤ */
+  const scenQ=!sqmOn?[]:[-10,-5,0,5,10].map(d=>{
+    const pps=N(p.pricePerSqm)*(1+d/100);
+    return Object.assign({d:d,pps:pps},scenAt(p,m,sqmBase(p,pps)+accT));
+  });
+  const sensQ=(!sqmOn||!canF("s_sens"))?"":
+    '<div class="card"><div class="card-h"><h3>Margine al variare del prezzo al m¬≤</h3><div class="sp"></div>'+
+      '<span class="chip acc">'+VE(p.pricePerSqm)+'/m¬≤</span></div><div class="tbl-wrap">'+
+      '<table class="tbl"><thead><tr><th>Scenario</th><th class="r">‚Ç¨/m¬≤</th><th class="r">Ricavo</th>'+
+      '<th class="r">Margine lordo</th><th class="r">Margine netto</th><th class="r">ROI netto</th></tr></thead><tbody>'+
+      scenQ.map(s=>'<tr'+(s.d===0?' style="background:var(--surface-2)"':'')+'><td>'+
+        (s.d===0?'<b>Base</b>':'<b style="color:'+(s.d>0?"var(--good)":"var(--bad)")+'">'+(s.d>0?"+":"")+s.d+'%</b>')+'</td>'+
+        '<td class="r">'+VE(s.pps)+'</td>'+
+        '<td class="r">'+VE(s.rev)+'</td>'+
+        '<td class="r">'+VE(s.gross)+'</td>'+
+        '<td class="r" style="color:'+(s.net>=0?"var(--good)":"var(--bad)")+';font-weight:700">'+VE(s.net)+'</td>'+
+        '<td class="r">'+pct(s.roi)+'</td></tr>').join("")+
+      '</tbody></table></div>'+
+      '<div class="card-p" style="border-top:1px solid var(--line-2)">'+
+        '<p class="dim" style="font-size:11.5px">Il valore degli accessori ('+VE(accT)+') resta fisso: varia solo il prezzo al m¬≤ dell\'immobile. '+
+        'Margini al netto di fee agenzia e oneri finanziari.</p></div></div>';
+
+  const sens=!canF("s_sens")?"":'<div class="card"><div class="card-h"><h3>'+(sqmOn?'Sensitivit√† sul ricavo totale':'Sensitivit√† prezzo')+'</h3></div><div class="tbl-wrap">'+
+      '<table class="tbl"><thead><tr><th>Scenario</th><th class="r">Ricavo</th><th class="r">Netto</th><th class="r">ROI netto</th></tr></thead><tbody>'+
+      scen.map(s=>'<tr'+(s.d===0?' style="background:var(--surface-2)"':'')+'><td>'+
+        (s.d===0?'<b>Base</b>':(s.d>0?"+":"")+s.d+"%")+'</td>'+
+        '<td class="r">'+VE(s.rev)+'</td>'+
+        '<td class="r" style="color:'+(s.net>=0?"var(--good)":"var(--bad)")+';font-weight:700">'+VE(s.net)+'</td>'+
+        '<td class="r">'+pct(s.roi)+'</td></tr>').join("")+
+      '</tbody></table></div>'+
+      '<div class="card-p" style="border-top:1px solid var(--line-2)">'+
+        '<div class="eyebrow" style="margin-bottom:8px">Punto di pareggio</div>'+
+        '<div style="font-size:15px;font-weight:700">'+VE(breakEven(p,m))+'</div>'+
+        '<div class="dim" style="font-size:11.5px;margin-top:3px">prezzo di vendita minimo per non perdere capitale</div>'+
+      '</div></div>';
+
+  const _parts=(p.partners||[]);
+  const _qs=_parts.reduce((a,x)=>a+N(x.quota),0)||100;
+  const _mx=_parts.reduce((a,x)=>Math.max(a,N(x.quota)),0)||1;
+  const un=!canF("s_profit")?"":'<div class="card"><div class="card-h"><h3>Utile netto per socio</h3><div class="sp"></div>'+
+      '<span class="chip">'+(_parts.length?_parts.length+' soci':'nessun socio')+'</span>'+
+      (canWrite()?'<button class="btn btn-sm" id="s_soci">Soci e quote</button>':'')+'</div>'+
+      (_parts.length?
+        '<div class="ptot">'+
+          '<div><div class="eyebrow">Utile netto da ripartire</div>'+
+            '<div class="big" style="color:'+(m.net>=0?"var(--good)":"var(--bad)")+'">'+VE(m.net)+'</div></div>'+
+          '<div class="ptot-k"><div class="eyebrow">Capitale proprio</div><b>'+VE(m.capital)+'</b></div>'+
+          '<div class="ptot-k"><div class="eyebrow">Utile lordo</div><b>'+VE(m.gross)+'</b></div>'+
+          '<div class="ptot-k"><div class="eyebrow">ROI netto</div><b style="color:'+(m.roiN>=0?"var(--good)":"var(--bad)")+'">'+pct(m.roiN)+'</b></div>'+
+        '</div>'+
+        _parts.map(x=>{
+          const q=N(x.quota)/_qs;
+          const cap=m.capital*q, gl=m.gross*q, nt=m.net*q;
+          const roi=cap?nt/cap*100:0;
+          return '<div class="psoc">'+
+            '<span class="av">'+esc(initials(x.name))+'</span>'+
+            '<div class="who">'+
+              '<div class="row" style="gap:8px"><span class="nm">'+esc(x.name)+'</span>'+
+              '<span class="chip">'+pct(N(x.quota),N(x.quota)%1?2:0)+'</span></div>'+
+              '<div class="qb"><i style="width:'+clamp(N(x.quota)/_mx*100,3,100)+'%"></i></div>'+
+              '<div class="meta"><span>Capitale <b>'+VE(cap)+'</b></span>'+
+                '<span>Utile lordo <b>'+VE(gl)+'</b></span>'+
+                '<span>ROI netto <b>'+pct(roi)+'</b></span></div>'+
+            '</div>'+
+            '<div class="val"><b style="color:'+(nt>=0?"var(--good)":"var(--bad)")+'">'+VE(nt)+'</b>'+
+              '<span>utile netto</span></div>'+
+          '</div>'}).join("")+
+        '<div class="card-p" style="border-top:1px solid var(--line-2)">'+
+          '<p class="dim" style="font-size:11.5px">Ripartizione sulle quote, al netto di fee agenzia, oneri finanziari e '+
+          (soc?'IRES + IRAP':'imposta sulla plusvalenza')+' al '+pct(m.taxRate,1)+'.'+
+          (Math.abs(_qs-100)>0.01?' <b style="color:var(--warn)">Attenzione: le quote sommano a '+pct(_qs,2)+', non a 100%.</b>':'')+'</p></div>'
+       :'<div class="empty"><div class="big">Nessun socio configurato</div>'+
+        'Aggiungi i soci e le loro quote per ripartire l\'utile dell\'operazione.'+
+        (canWrite()?'<div style="margin-top:12px"><button class="btn btn-sm" id="s_soci">Soci e quote</button></div>':'')+'</div>')+
+      '</div>';
+  const fee=!canF("s_fee")?"":'<div class="card"><div class="card-h"><h3>Accordo con l\'agenzia</h3></div><div class="card-p">'+feeSummary(p,m)+'</div></div>';
+  const vc=vatCalc(p,m);
+  const ivaCard=!canF("s_pl")?"":'<div class="card" style="margin-top:12px"><div class="card-h"><h3>Posizione IVA</h3>'+
+    '<div class="sp"></div><span class="chip">aliquota costi '+vc.rate+'%</span></div><div class="card-p">'+
+    '<p class="dim" style="font-size:11.5px;margin-bottom:12px">Calcolata sui valori imponibili, indipendente dallo switch ¬´+ IVA¬ª.</p>'+
+    '<div class="split"><span class="l">Base dei costi con IVA'+(p.ivaOnPurchase?' (acquisto incluso)':'')+'</span>'+
+      '<span class="v">'+eurN(vc.base)+'</span></div>'+
+    '<div class="split"><span class="l">IVA a credito sui costi ¬∑ '+vc.rate+'%</span>'+
+      '<span class="v" style="color:var(--good)">'+eurN(vc.credit)+'</span></div>'+
+    '<div class="eyebrow" style="margin:16px 0 9px">Se vendi con IVA ‚Äî ricavo '+eurN(m.rev)+'</div>'+
+    '<div class="ivahead"><span>Aliquota</span><span>IVA a debito</span><span>IVA a credito</span><span>Saldo</span></div>'+
+    vc.rows.map(r=>'<div class="ivarow"><span>'+r.rate+'%</span>'+
+      '<span class="v">'+eurN(r.debit)+'</span>'+
+      '<span class="v" style="color:var(--good)">'+eurN(vc.credit)+'</span>'+
+      '<span class="v" style="color:'+(r.net>0?"var(--bad)":"var(--good)")+'">'+
+      (r.net>0?"debito ":"credito ")+eurN(Math.abs(r.net))+'</span></div>').join("")+
+    '<p class="dim" style="font-size:11.5px;margin-top:12px">Saldo positivo = IVA da versare all\'Erario; saldo negativo = IVA a credito '+
+    '(rimborso o compensazione). Verifica il regime applicabile con il commercialista.</p></div></div>';
+
+  const page=el("div","page");
+  page.innerHTML='<div class="page-head"><div><h1>Sales / Exit</h1>'+
+    '<div class="sub">Previsioni di vendita, fee agenzia e fiscalit√† '+(soc?"societaria":"su persone fisiche")+'</div></div><div class="sp"></div>'+
+    (canWrite()?'<div class="row">'+
+      (canF("s_units")?'<button class="btn btn-sm btn-pri" id="s_price">Prezzo di vendita</button>':'')+
+      (canF("s_units")?'<button class="btn btn-sm" id="s_units">Unit√†</button>':'')+
+      (canF("s_fee")?'<button class="btn btn-sm" id="s_fee">Agenzia</button>':'')+
+      (canF("s_roi")?'<button class="btn btn-sm" id="s_tax">Fiscalit√†</button>':'')+
+      '</div>':'')+'</div>'+
+    '<div class="grid g4" style="margin-bottom:12px">'+kpis+'</div>'+
+    comp+
+    (pl||sens?'<div class="grid '+(pl&&sens?"g21":"g1")+'" style="margin-bottom:12px">'+pl+sens+'</div>':'')+
+    (sensQ?'<div class="grid g1" style="margin-bottom:12px">'+sensQ+'</div>':'')+
+    (un||fee?'<div class="grid '+(un&&fee?"g2":"g1")+'">'+un+fee+'</div>':'')+ivaCard;
+  sc.innerHTML=""; sc.appendChild(page);
+  const pr=$("#s_price",page); if(pr) pr.addEventListener("click",()=>priceModal(p));
+  const pr2=$("#s_price2",page); if(pr2) pr2.addEventListener("click",()=>priceModal(p));
+  const u=$("#s_units",page); if(u) u.addEventListener("click",()=>unitsModal(p));
+  const f=$("#s_fee",page); if(f) f.addEventListener("click",()=>feeModal(p));
+  const t=$("#s_tax",page); if(t) t.addEventListener("click",()=>taxModal(p));
+  const so=$("#s_soci",page); if(so) so.addEventListener("click",()=>partnersModal(p));
+}
+
+const APP_VER="v16 ¬∑ 01.10.2026";
 
 /* ========================= INIT ========================= */
 const th=lsGet("repjt.theme"); document.documentElement.setAttribute("data-theme",th||"dark");
