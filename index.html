@@ -840,6 +840,13 @@ input.inp[type="text"]:not([data-nocase]){text-transform:uppercase}
 .seg2>button.on{background:var(--accent);color:#fff;box-shadow:0 2px 8px -3px var(--accent)}
 .pm-tot{margin-top:16px;padding-top:12px;border-top:1px solid var(--line-2)}
 .pm-rt{color:var(--ink-2);font-family:var(--fm);flex:none}
+
+/* ====================================================================
+   v17 — etichetta per le voci non soggette a IVA
+   ==================================================================== */
+.novat{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;
+  background:var(--info-soft);color:var(--info);font-size:8.5px;font-weight:800;
+  letter-spacing:.08em;text-transform:uppercase;font-family:var(--ff);vertical-align:1px;white-space:nowrap}
 </style>
 <div id="root"><div class="loading"><div class="spin"></div>Caricamento…</div></div>
 <div id="toasts"></div>
@@ -7220,7 +7227,1065 @@ function viewSales(sc,p){
   const so=$("#s_soci",page); if(so) so.addEventListener("click",()=>partnersModal(p));
 }
 
-const APP_VER="v16 · 01.10.2026";
+
+/* ======================================================================
+   v17 — flag "voce non soggetta a IVA" sulle voci di Finance
+          (oneri di urbanizzazione, bolli, imposte): restano all'imponibile
+          anche con lo switch «+ IVA» attivo, in ogni calcolo e totale
+   ====================================================================== */
+function vatFree(it){ return !!(it&&it.noVat) }
+function vatKi(it){ return vatFree(it)?1:vatK() }
+const VI=(v,it)=>eur0(N(v)*vatKi(it));
+function vatSum(list,get){
+  return (list||[]).reduce((s,x)=>s+N(get?get(x):x.amount)*vatKi(x),0);
+}
+
+function viewFinance(sc,p){
+  const m=metrics(p,S.fin,S.tasks);
+  const lb=ledgerBalances(p,S.fin,S.ledger);
+  const reqs=S.fin.filter(f=>f.kind==="request");
+  const pays=S.fin.filter(f=>f.kind==="payment");
+  const planTot=vatSum(S.plan);
+  const planPaid=vatSum(S.plan.filter(x=>x.status==="pagato"));
+  const paidV=vatSum(pays);
+  const worksV=N(m.works)*vatK();
+  let kpis="";
+  if(canF("f_budget")) kpis+=kpi("Budget lavori",VE(m.works),IC.scale,"da scheda progetto","");
+  if(canF("f_pay")) kpis+=kpi("Pagato",eur0(paidV),IC.euro,pct(m.spentPct,0)+" del budget",m.spentPct>100?"bad":"acc");
+  if(canF("f_req")) kpis+=kpi("Richieste aperte",VE(m.reqOpen),IC.doc,reqs.filter(r=>r.status!=="paid").length+" documenti","info");
+  if(canF("f_plan")) kpis+=kpi("Piano pagamenti",eur0(planTot),IC.cal,eur0(planTot-planPaid)+" ancora da pagare","warn");
+  if(canF("f_budget")) kpis+=kpi("Residuo budget",eur0(worksV-paidV),IC.wallet,(m.works-m.paid)<0?"budget superato":"disponibile",(m.works-m.paid)<0?"bad":"good");
+  const page=el("div","page");
+  page.innerHTML='<div class="page-head"><div><h1>Finance</h1>'+
+    '<div class="sub">Richieste fornitori, pagamenti, piano di cassa e partite tra soci</div></div><div class="sp"></div>'+
+    (canWrite()?'<div class="row">'+
+      (canF("f_plan")?'<button class="btn btn-sm" id="f_pl">'+IC.plus+'Pagamento previsto</button>':'')+
+      (canF("f_req")?'<button class="btn btn-sm" id="f_req">'+IC.plus+'Richiesta</button>':'')+
+      (canF("f_pay")?'<button class="btn btn-pri btn-sm" id="f_pay">'+IC.plus+'Pagamento</button>':'')+
+      '</div>':'')+'</div>'+
+    '<div class="grid g4" style="margin-bottom:12px">'+kpis+'</div>'+
+    (canF("f_plan")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Timeline pagamenti</h3>'+
+      '<div class="sp"></div><span class="chip acc">'+eur0(planTot)+'</span>'+
+      '<button class="btn btn-sm" id="pl_today">Oggi</button>'+
+      '<button class="btn btn-sm" id="pl_xls">'+IC.dl+'Excel</button></div>'+
+      '<div id="pay-host"></div></div>'+
+      '<div class="grid g2" style="margin-bottom:12px"><div class="card"><div class="card-h"><h3>Totali piano di cassa</h3></div>'+
+      '<div class="card-p" id="pl_tot"></div></div>'+
+      '<div class="card"><div class="card-h"><h3>Ripartizione per quote</h3><div class="sp"></div>'+
+      (canWrite()?'<button class="btn btn-sm" id="f_soci2">Soci e quote</button>':'')+'</div>'+
+      '<div class="card-p" id="pl_split"></div></div></div>':'')+
+    (canF("f_req")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Richieste di pagamento</h3><div class="sp"></div>'+
+      '<span class="chip">'+reqs.length+'</span></div><div class="tbl-wrap"><table class="tbl resp"><thead><tr>'+
+      '<th>Fornitore</th><th>Descrizione</th><th>Data</th><th>Scadenza</th><th class="r">Importo</th><th>Stato</th><th></th>'+
+      '</tr></thead><tbody id="rq"></tbody></table></div></div>':'')+
+    (canF("f_pay")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Pagamenti effettuati</h3><div class="sp"></div>'+
+      '<span class="chip">'+pays.length+'</span></div><div class="tbl-wrap"><table class="tbl resp"><thead><tr>'+
+      '<th>Data</th><th>Fornitore</th><th>Descrizione</th><th>Pagato da</th><th>Modalità</th><th class="r">Importo</th><th></th>'+
+      '</tr></thead><tbody id="pb"></tbody></table></div></div>':'')+
+    (canF("f_ledger")||canF("f_quotas")?'<div class="grid g21">'+
+      (canF("f_ledger")?'<div class="card"><div class="card-h"><h3>Conti tra soci</h3><div class="sp"></div>'+
+        (canWrite()?'<button class="btn btn-sm" id="f_soci">Soci e quote</button>'+
+        '<button class="btn btn-sm" id="f_le">'+IC.plus+'Partita</button>':'')+'</div>'+
+        '<div class="tbl-wrap"><table class="tbl resp"><thead><tr><th>Data</th><th>Ha pagato</th><th>Per conto di</th>'+
+        '<th>Descrizione</th><th class="r">Importo</th><th></th></tr></thead><tbody id="lg"></tbody></table></div></div>':'')+
+      (canF("f_quotas")?'<div class="card"><div class="card-h"><h3>Saldi</h3><div class="sp"></div>'+
+        '<button class="btn btn-sm" id="f_who">Chi deve a chi</button></div><div class="card-p" id="bal"></div></div>':'')+
+    '</div>':'');
+  sc.innerHTML=""; sc.appendChild(page);
+
+  if(canF("f_plan")){
+    drawPayGantt($("#pay-host",page),p);
+    const tp=$("#pl_today",page); if(tp) tp.addEventListener("click",()=>scrollToToday(page,ganttRange(S.tasks,p),"pay"));
+    const xb=$("#pl_xls",page); if(xb) xb.addEventListener("click",async()=>{
+      xb.disabled=true; const o=xb.innerHTML; xb.textContent="Genero…";
+      await exportPayXlsx(p); xb.disabled=false; xb.innerHTML=o; });
+    const residuo=planTot-planPaid;
+    $("#pl_tot",page).innerHTML=
+      '<div class="split"><span class="l">Pagamenti pianificati ('+S.plan.length+')</span><span class="v">'+eur0(planTot)+'</span></div>'+
+      '<div class="split"><span class="l">Già pagati</span><span class="v" style="color:var(--good)">'+eur0(planPaid)+'</span></div>'+
+      '<div class="split"><span class="l">Ancora da pagare</span><span class="v" style="color:var(--warn)">'+eur0(residuo)+'</span></div>'+
+      (canF("f_budget")?'<div class="split"><span class="l">Budget lavori</span><span class="v">'+VE(m.works)+'</span></div>'+
+       '<div class="split tot"><span class="l">Scostamento piano / budget</span><span class="v" style="color:'+
+       ((planTot-m.works)>0?"var(--bad)":"var(--good)")+'">'+eur0(planTot-worksV)+'</span></div>':'')+
+      '<div style="margin-top:12px"><div class="row" style="justify-content:space-between;margin-bottom:6px">'+
+      '<span class="eyebrow">Avanzamento piano</span><span class="mono" style="font-size:11.5px;font-weight:700">'+
+      pct(planTot?planPaid/planTot*100:0,0)+'</span></div><div class="bar good" style="height:9px"><i style="width:'+
+      clamp(planTot?planPaid/planTot*100:0,0,100)+'%"></i></div></div>';
+    const parts=(p.partners||[]);
+    const qs=parts.reduce((s,x)=>s+N(x.quota),0)||100;
+    $("#pl_split",page).innerHTML= parts.length?
+      '<p class="dim" style="font-size:11.5px;margin-bottom:10px">Quanto tocca a ciascun socio sul piano di cassa, in base alle quote.</p>'+
+      '<table class="tbl" style="font-size:12.5px"><thead><tr><th style="padding-left:0">Socio</th><th class="r">Quota</th>'+
+      '<th class="r">Su piano</th><th class="r" style="padding-right:0">Già versato</th></tr></thead><tbody>'+
+      parts.map(x=>{
+        const versato=pays.reduce((s,f)=>s+paidByOf(f,x.id)*vatKi(f),0);
+        const dovuto=planTot*(N(x.quota)/qs);
+        return '<tr><td style="padding-left:0"><b>'+esc(x.name)+'</b></td><td class="r">'+pct(N(x.quota),1)+'</td>'+
+          '<td class="r" style="font-weight:700">'+eur0(dovuto)+'</td>'+
+          '<td class="r" style="padding-right:0;color:'+(versato>=dovuto?"var(--good)":"var(--ink-2)")+'">'+eur0(versato)+'</td></tr>'}).join("")+
+      '<tr><td style="padding-left:0;font-weight:700">Totale</td><td class="r">'+pct(qs,1)+'</td>'+
+      '<td class="r" style="font-weight:800">'+eur0(planTot)+'</td><td class="r" style="padding-right:0;font-weight:700">'+eur0(paidV)+'</td></tr>'+
+      '</tbody></table>'
+      :'<div class="dim" style="font-size:12.5px">Nessun socio configurato: aggiungili dalla scheda progetto o dal pulsante «Soci e quote».</div>';
+    const s2=$("#f_soci2",page); if(s2) s2.addEventListener("click",()=>partnersModal(p));
+  }
+
+  const rq=$("#rq",page);
+  if(rq){
+    if(!reqs.length) rq.innerHTML='<tr><td colspan="7"><div class="empty">Nessuna richiesta registrata.</div></td></tr>';
+    reqs.forEach(f=>{
+      const overdue=f.status!=="paid"&&f.due&&f.due<iso(new Date());
+      const tr=el("tr");
+      tr.innerHTML='<td class="hd"><b>'+esc(f.supplier||"—")+'</b></td><td data-l="Descrizione" class="muted">'+esc(f.desc||"")+'</td>'+
+        '<td data-l="Data" class="mono" style="font-size:12px">'+fmtD(f.date)+'</td>'+
+        '<td data-l="Scadenza" class="mono" style="font-size:12px'+(overdue?';color:var(--bad);font-weight:700':'')+'">'+(f.due?fmtD(f.due):"—")+'</td>'+
+        '<td data-l="Importo" class="r" style="font-weight:700">'+VI(f.amount,f)+(f.noVat?' <span class="novat">no iva</span>':'')+'</td>'+
+        '<td data-l="Stato"><span class="chip '+fstatChip(f.status)+'">'+esc(fstatLabel(f.status))+'</span></td>'+
+        '<td class="r act-cell"><span class="act row" style="justify-content:flex-end;gap:4px">'+
+        (canWrite()&&f.status!=="paid"?'<button class="btn btn-xs" data-mk="'+f.id+'">Paga</button>':'')+
+        (canWrite()?'<button class="btn btn-xs" data-fe="'+f.id+'">'+IC.pen+'</button>'+
+        '<button class="btn btn-xs" data-fd="'+f.id+'">'+IC.trash+'</button>':'')+'</span></td>';
+      rq.appendChild(tr);
+    });
+  }
+  const pb=$("#pb",page);
+  if(pb){
+    if(!pays.length) pb.innerHTML='<tr><td colspan="7"><div class="empty">Nessun pagamento registrato.</div></td></tr>';
+    pays.forEach(f=>{
+      const tr=el("tr");
+      tr.innerHTML='<td class="hd"><b>'+fmtD(f.date)+'</b> · '+esc(f.supplier||"—")+
+          (f.planId?' <span class="chip info">da piano</span>':'')+'</td>'+
+        '<td data-l="Descrizione" class="muted">'+esc(f.desc||"")+'</td>'+
+        '<td data-l="Pagato da">'+payerChips(f,p)+'</td>'+
+        '<td data-l="Modalità" class="muted" style="font-size:12px">'+esc((METHODS.find(x=>x[0]===f.method)||["","—"])[1])+'</td>'+
+        '<td data-l="Importo" class="r" style="font-weight:700">'+VI(f.amount,f)+(f.noVat?' <span class="novat">no iva</span>':'')+'</td>'+
+        '<td class="r act-cell"><span class="act row" style="justify-content:flex-end;gap:4px">'+
+        (canWrite()?'<button class="btn btn-xs" data-fe="'+f.id+'">'+IC.pen+'</button>'+
+        '<button class="btn btn-xs" data-fd="'+f.id+'">'+IC.trash+'</button>':'')+'</span></td>';
+      pb.appendChild(tr);
+    });
+  }
+  const lg=$("#lg",page);
+  if(lg){
+    if(!S.ledger.length) lg.innerHTML='<tr><td colspan="6"><div class="empty">Nessuna partita tra soci.<br>'+
+      '<span style="font-size:12px">Esempio: «Aloi ha pagato 1.000 € per conto di Pasta».</span></div></td></tr>';
+    S.ledger.forEach(l=>{
+      const a=(p.partners||[]).find(x=>x.id===l.from), bb=(p.partners||[]).find(x=>x.id===l.to);
+      const tr=el("tr");
+      tr.innerHTML='<td class="hd"><b>'+esc(a?a.name:"—")+'</b> → '+esc(bb?bb.name:"—")+
+          (l.kind==="settle"?' <span class="chip good">rimborso</span>':'')+'</td>'+
+        '<td data-l="Data" class="mono" style="font-size:12px">'+fmtD(l.date)+'</td>'+
+        '<td data-l="Descrizione" class="muted">'+esc(l.desc||"")+'</td>'+
+        '<td data-l="Importo" class="r" style="font-weight:700">'+VE(l.amount)+'</td>'+
+        '<td class="r act-cell"><span class="act">'+(canWrite()?'<button class="btn btn-xs btn-danger" data-ld="'+l.id+'">'+IC.trash+'</button>':'')+'</span></td>';
+      lg.appendChild(tr);
+    });
+  }
+  const bal=$("#bal",page);
+  if(bal){
+    if(!lb.rows.length){ bal.innerHTML='<div class="dim" style="font-size:12.5px">Configura i soci per vedere i saldi.</div>' }
+    else{
+      bal.innerHTML='<div class="split"><span class="l">Totale versato</span><span class="v">'+VE(lb.totalPaid)+'</span></div>'+
+        lb.rows.map(r=>{
+          const tone=r.balance>1?"good":r.balance<-1?"bad":"";
+          return '<div class="balrow" data-soc="'+r.id+'" style="border-bottom:1px solid var(--line-2)" '+
+            'title="Apri lo spaccato del conto di '+esc(r.name)+'">'+
+          '<div class="row" style="justify-content:space-between;margin-bottom:6px">'+
+            '<span style="font-size:13px;font-weight:700">'+esc(r.name)+' <span class="dim mono" style="font-size:11px;font-weight:500">quota '+pct(r.quota,0)+'</span></span>'+
+            '<span class="chip '+tone+'">'+(r.balance>1?"a credito":r.balance<-1?"a debito":"in pari")+' '+VE(Math.abs(r.balance))+'</span></div>'+
+          '<table class="mini-tbl" style="width:100%"><tr><td class="dim">Versato</td><td class="r">'+VE(r.paid)+'</td></tr>'+
+          '<tr><td class="dim">Dovuto su quota</td><td class="r">'+VE(r.due)+'</td></tr>'+
+          (Math.abs(r.manual)>0.5?'<tr><td class="dim">Partite dirette</td><td class="r">'+VE(r.manual)+'</td></tr>':'')+
+          '</table></div>'}).join("")+
+        '<p class="dim" style="font-size:11.5px;margin-top:10px">Tocca un socio per vedere lo spaccato dei movimenti.</p>';
+      $$("[data-soc]",bal).forEach(x=>x.addEventListener("click",()=>socioModal(p,x.dataset.soc)));
+    }
+  }
+  const bpl=$("#f_pl",page); if(bpl) bpl.addEventListener("click",()=>planModal(null));
+  const br=$("#f_req",page); if(br) br.addEventListener("click",()=>finModal(null,"request"));
+  const bp=$("#f_pay",page); if(bp) bp.addEventListener("click",()=>finModal(null,"payment"));
+  const bs=$("#f_soci",page); if(bs) bs.addEventListener("click",()=>partnersModal(p));
+  const bw=$("#f_who",page); if(bw) bw.addEventListener("click",()=>settlementModal(p));
+  const bl=$("#f_le",page); if(bl) bl.addEventListener("click",()=>ledgerModal(p));
+  $$("[data-fe]",page).forEach(b=>b.addEventListener("click",()=>{const f=S.fin.find(x=>x.id===b.dataset.fe);if(f)finModal(f,f.kind)}));
+  $$("[data-fd]",page).forEach(b=>b.addEventListener("click",()=>{
+    const f=S.fin.find(x=>x.id===b.dataset.fd); if(!f)return;
+    confirmBox("Elimina voce","Eliminare «"+(f.supplier||f.desc||"voce")+"» ("+VE(f.amount)+")?","Elimina",async()=>{
+      await del(ppath("fin/"+f.id)); await loadProjectData(S.pid); render(); toast("Voce eliminata")})}));
+  $$("[data-ld]",page).forEach(b=>b.addEventListener("click",async()=>{
+    await del(ppath("ledger/"+b.dataset.ld)); await loadProjectData(S.pid); render(); toast("Partita eliminata")}));
+  $$("[data-mk]",page).forEach(b=>b.addEventListener("click",()=>{
+    const f=S.fin.find(x=>x.id===b.dataset.mk); if(f) payRequest(f,p)}));
+}
+
+function planGroups(){
+  const groups=[], by={};
+  (S.plan||[]).forEach(it=>{
+    if(it.recId){
+      if(!by[it.recId]){ by[it.recId]={rec:true,key:it.recId,items:[]}; groups.push(by[it.recId]) }
+      by[it.recId].items.push(it);
+    } else groups.push({rec:false,key:it.id,items:[it]});
+  });
+  groups.forEach(g=>{
+    g.items.sort((a,b)=>((N(a.recIdx)||0)-(N(b.recIdx)||0))||String(a.date||"").localeCompare(String(b.date||"")));
+    g.first=g.items[0];
+    g.last=g.items[g.items.length-1];
+    g.n=g.items.length;
+    g.tot=g.items.reduce((s,x)=>s+N(x.amount),0);
+    const a=g.items.map(x=>N(x.amount));
+    g.min=Math.min.apply(null,a); g.max=Math.max.apply(null,a);
+    g.paid=g.items.filter(x=>x.status==="pagato").length;
+    g.conf=g.items.filter(x=>x.status==="confermato").length;
+    g.col=g.paid===g.n?"#3C7A57":g.conf?"#C4712B":"#6E7D8C";
+    g.totV=vatSum(g.items);
+    g.noVat=!!g.first.noVat;
+  });
+  return groups;
+}
+
+function sociAggr(p,items){
+  const map={};
+  (items||[]).forEach(it=>quotaSplit(p,it.amount,it.paidBy).forEach(r=>{
+    if(!map[r.id]) map[r.id]={name:r.name,val:0};
+    map[r.id].val+=r.val*vatKi(it);
+  }));
+  return Object.keys(map).map(k=>map[k]).filter(r=>Math.abs(r.val)>0.5).sort((a,b)=>b.val-a.val);
+}
+
+function tipSoci(p,amount,paidBy,titolo,it){
+  const rows=quotaSplit(p,amount,paidBy);
+  if(!rows.length||!N(amount)) return "";
+  if(rows[0].solo) return '<div class="sep"></div>'+tipHead(titolo||"A carico di un solo socio")+
+    tipRow(rows[0].name+" · 100%",VI(rows[0].val,it));
+  return '<div class="sep"></div>'+tipHead(titolo||"Quota per socio")+
+    rows.map(r=>tipRow(r.name+" · "+pct(r.quota,Math.abs(r.quota%1)>0.05?1:0),VI(r.val,it))).join("");
+}
+
+function tipSociAggr(p,items,titolo){
+  const rows=sociAggr(p,items);
+  if(!rows.length) return "";
+  const tot=rows.reduce((s,r)=>s+r.val,0)||1;
+  return '<div class="sep"></div>'+tipHead(titolo||"Quota per socio")+
+    rows.map(r=>{const q=r.val/tot*100; return tipRow(r.name+" · "+pct(q,Math.abs(q%1)>0.05?1:0),eur0(r.val))}).join("");
+}
+
+function payTip(it,bar,R,live,p){
+  let date=it.date, wk=Math.max(1,N(it.weeks)||1);
+  if(live){ const g=geomDates(bar,R); date=g.start; wk=g.weeks }
+  const who=((p&&p.partners)||[]).find(x=>x.id===it.paidBy);
+  const c=it.status==="pagato"?"#3C7A57":it.status==="confermato"?"#C4712B":"#6E7D8C";
+  const fine=iso(addD(pd(date)||new Date(),wk*7-1));
+  return '<div class="t"><i style="background:'+c+'"></i>'+esc(it.label||it.supplier||"Pagamento")+'</div>'+
+    (it.recId?'<div class="r"><span>Serie mensile</span><span>rata '+(N(it.recIdx)||1)+' di '+(N(it.recTot)||1)+'</span></div>':'')+
+    (it.supplier?tipRow("Fornitore",it.supplier):"")+
+    tipRow("Importo",VI(it.amount,it),true)+
+    (it.noVat?tipRow("IVA","non soggetto · sempre imponibile"):"")+
+    '<div class="sep"></div>'+
+    tipRow("Settimana",fmtDL(date))+
+    (wk>1?tipRow("Fine",fmtDL(fine)):"")+
+    tipRow("Durata",wk+(wk===1?" settimana":" settimane"))+
+    '<div class="r"><span>Stato</span><span>'+esc(pstatLabel(it.status))+'</span></div>'+
+    tipSoci(p,it.amount,it.paidBy,who?("A carico di "+who.name):"Quota per socio",it)+
+    (live?'<div class="r" style="margin-top:5px"><span style="color:var(--accent)">rilascia per confermare</span></div>':'');
+}
+
+function planTip(it,p){
+  const who=((p&&p.partners)||[]).find(x=>x.id===it.paidBy);
+  const c=it.status==="pagato"?"#3C7A57":it.status==="confermato"?"#C4712B":"#6E7D8C";
+  const wk=Math.max(1,N(it.weeks)||1);
+  const tot=vatSum(S.plan);
+  const peso=tot?N(it.amount)*vatKi(it)/tot*100:0;
+  return '<div class="t"><i style="background:'+c+'"></i>'+esc(it.label||it.supplier||"Pagamento")+'</div>'+
+    (it.recId?'<div class="r"><span>Serie mensile</span><span>rata '+(N(it.recIdx)||1)+' di '+(N(it.recTot)||1)+'</span></div>':'')+
+    (it.supplier?tipRow("Fornitore",it.supplier):"")+
+    tipRow("Voce di costo",PLCAT[it.cat]||it.cat||"—")+
+    tipRow("Importo",VI(it.amount,it),true)+
+    (it.noVat?tipRow("IVA","non soggetto · sempre imponibile"):"")+
+    tipRow("Peso sul piano",pct(peso,1))+
+    '<div class="sep"></div>'+
+    tipRow("Settimana di pagamento",fmtDL(it.date))+
+    (wk>1?tipRow("Durata",wk+" settimane"):"")+
+    '<div class="r"><span>Stato</span><span>'+esc(pstatLabel(it.status))+'</span></div>'+
+    tipRow("A carico di",who?who.name:"tutti i soci su quota")+
+    tipSoci(p,it.amount,it.paidBy,who?("A carico di "+who.name):"Quota per socio",it)+
+    (it.note?'<div class="sep"></div><div class="r"><span style="white-space:normal;max-width:240px;line-height:1.45">'+
+      esc(it.note)+'</span><span></span></div>':'');
+}
+
+function seriesTip(g,p){
+  const it=g.first;
+  return '<div class="t"><i style="background:'+g.col+'"></i>'+esc(it.label||it.supplier||"Pagamento")+'</div>'+
+    '<div class="r"><span>Serie mensile</span><span>'+g.n+' rate</span></div>'+
+    (it.supplier?tipRow("Fornitore",it.supplier):"")+
+    tipRow("Voce di costo",PLCAT[it.cat]||it.cat||"—")+
+    tipRow(g.min===g.max?"Rata mensile":"Rata · da / a",
+           g.min===g.max?VI(g.min,g.first):(VI(g.min,g.first)+" → "+VI(g.max,g.first)))+
+    (g.noVat?tipRow("IVA","non soggetto · sempre imponibile"):"")+
+    tipRow("Totale della serie",eur0(g.totV),true)+
+    '<div class="sep"></div>'+
+    tipRow("Prima rata",fmtDL(it.date))+
+    tipRow("Ultima rata",fmtDL(g.last.date))+
+    '<div class="r"><span>Stato</span><span>'+g.paid+' pagate · '+g.conf+' confermate · '+(g.n-g.paid-g.conf)+' previste</span></div>'+
+    tipSociAggr(p,g.items,"Quota totale per socio")+
+    (it.note?'<div class="sep"></div><div class="r"><span style="white-space:normal;max-width:240px;line-height:1.45">'+
+      esc(it.note)+'</span><span></span></div>':'');
+}
+
+function weekTip(p,w){
+  if(!w.items.length) return '<div class="t"><i style="background:var(--ink-4)"></i>'+esc(w.label)+'</div>'+
+    '<div class="r"><span>Nessuna uscita in questa settimana</span><span></span></div>';
+  return '<div class="t"><i style="background:var(--accent)"></i>'+esc(w.label)+'</div>'+
+    tipRow("Cassa della settimana",eur0(w.sum),true)+
+    '<div class="sep"></div>'+
+    w.items.slice(0,6).map(x=>tipRow((x.label||x.supplier||"Pagamento")+(x.noVat?" (no iva)":""),VI(x.amount,x))).join("")+
+    (w.items.length>6?'<div class="r"><span>+ altre '+(w.items.length-6)+' voci</span><span></span></div>':'')+
+    tipSociAggr(p,w.items,"Quota della settimana");
+}
+
+function monthTip(p,m){
+  if(!m.items.length) return '<div class="t"><i style="background:var(--ink-4)"></i>'+esc(m.label)+'</div>'+
+    '<div class="r"><span>Nessuna uscita in questo mese</span><span></span></div>';
+  const it=m.items.slice().sort((a,b)=>N(b.amount)-N(a.amount));
+  return '<div class="t"><i style="background:var(--accent)"></i>'+esc(m.label)+'</div>'+
+    tipRow("Uscite del mese",eur0(m.sum),true)+
+    tipRow("Numero di voci",String(it.length))+
+    '<div class="sep"></div>'+
+    it.slice(0,7).map(x=>tipRow((x.label||x.supplier||"Pagamento")+(x.noVat?" (no iva)":"")+(x.recId?" ("+(N(x.recIdx)||1)+"/"+(N(x.recTot)||1)+")":""),VI(x.amount,x))).join("")+
+    (it.length>7?'<div class="r"><span>+ altre '+(it.length-7)+' voci</span><span></span></div>':'')+
+    tipSociAggr(p,m.items,"Quota del mese per socio");
+}
+
+function drawPayGantt(host,p){
+  if(!S.plan.length){
+    host.innerHTML='<div class="empty"><div class="big">Nessun pagamento pianificato</div>'+
+      'Aggiungi le uscite previste e vedrai la timeline di cassa settimana per settimana.'+
+      (canWrite()?'<div style="margin-top:14px"><button class="btn btn-pri" id="pl_add0">'+IC.plus+'Aggiungi pagamento previsto</button></div>':'')+'</div>';
+    const b=$("#pl_add0",host); if(b) b.addEventListener("click",()=>planModal(null));
+    return;
+  }
+  const R=payRange(S.tasks,p);
+  const W=R.weeks*COL;
+  const L=ganttLayers(R,W);
+  const G=planGroups();
+  const weeks=[];
+  for(let w=0;w<R.weeks;w++) weeks.push({sum:0,items:[],label:"Settimana del "+fmtD(iso(addD(R.start,w*7)))});
+  S.plan.forEach(it=>{
+    const w=weeksBetween(R.start,pd(it.date)||R.start);
+    if(w>=0&&w<R.weeks){ weeks[w].sum+=N(it.amount)*vatKi(it); weeks[w].items.push(it) }
+  });
+  const maxW=Math.max.apply(null,weeks.map(w=>w.sum).concat([1]));
+  const months=L.months.map(mm=>{
+    let s=0,its=[];
+    for(let k=mm.idx;k<mm.idx+mm.span;k++){ s+=weeks[k].sum; its=its.concat(weeks[k].items) }
+    return {span:mm.span,sum:s,items:its,
+      short:MESI[mm.mo].slice(0,3).toUpperCase()+" "+String(mm.year).slice(2),
+      label:MESI[mm.mo]+" "+mm.year};
+  });
+  S._payAgg={weeks:weeks,months:months};
+  const todayX=((new Date()-R.start)/DAY)/7*COL;
+  const col=it=>it.status==="pagato"?"#3C7A57":it.status==="confermato"?"#C4712B":"#6E7D8C";
+  const xOf=it=>clamp(weeksBetween(R.start,pd(it.date)||R.start),0,R.weeks-1)*COL;
+
+  /* una riga per gruppo: le rate mensili stanno sulla stessa linea */
+  const rows=G.map(g=>{
+    const bars=g.items.map((it,i)=>{
+      const x=xOf(it);
+      const span=Math.max(1,N(it.weeks)||1);
+      let width=Math.max(74,span*COL);
+      if(g.rec&&g.items[i+1]){
+        const gap=xOf(g.items[i+1])-x-4;
+        width=Math.max(32,Math.min(width,gap));
+      }
+      const mini=width<64;
+      return '<div class="pay-bar'+(it.status==="pagato"?" done":"")+(mini?" mini":"")+
+        '" data-pb="'+it.id+'" style="left:'+x+'px;width:'+width+'px;background-color:'+col(it)+'">'+
+        (mini?'':'<span class="pd"></span>')+'<span>'+esc(VI(it.amount,it))+'</span></div>';
+    }).join("");
+    return '<div class="g-row" style="width:'+W+'px"><div class="g-track" style="width:'+W+'px">'+
+      '<div class="g-grid">'+L.grid+'</div>'+bars+'</div></div>';
+  }).join("");
+
+  const left=G.map(g=>{
+    const it=g.first;
+    const who=(p.partners||[]).find(x=>x.id===it.paidBy);
+    const nm='<span class="nm"'+(canWrite()?' data-pe="'+it.id+'" style="cursor:pointer"':'')+'>'+
+      esc(it.label||it.supplier||"Pagamento")+
+      (g.rec?'<span class="recbadge">mensile ×'+g.n+'</span>':'')+
+      (it.noVat?'<span class="novat">no iva</span>':'')+
+      (it.supplier?'<span class="dim" style="font-weight:500"> · '+esc(it.supplier)+'</span>':'')+
+      (who?'<span class="dim" style="font-weight:500"> · '+esc(who.name)+'</span>':'')+'</span>';
+    const imp=g.rec
+      ?'<span class="wk two" style="width:82px;text-align:right;font-weight:700;color:var(--ink)">'+
+         (g.min===g.max?VI(g.min,it):VI(g.min,it)+"–"+VI(g.max,it))+'<small>tot '+eur0(g.totV)+'</small></span>'
+      :'<span class="wk" style="width:82px;text-align:right;font-weight:700;color:var(--ink);display:block">'+VI(it.amount,it)+'</span>';
+    const hnd=canWrite()?'<span class="hnd"><button class="btn btn-xs" data-pe="'+it.id+'">'+IC.pen+'</button>'+
+      '<button class="btn btn-xs" '+(g.rec?'data-pgd="'+g.key+'"':'data-pd="'+it.id+'"')+'>'+IC.trash+'</button></span>':'';
+    return '<div class="g-row"><div class="g-li pl" '+(g.rec?'data-pg="'+g.key+'"':'data-pl="'+it.id+'"')+'>'+
+      '<span style="width:8px;height:8px;border-radius:50%;background:'+g.col+';flex:none"></span>'+
+      nm+hnd+imp+'</div></div>';
+  }).join("");
+
+  host.innerHTML='<div class="gantt" style="border:0;border-radius:0;box-shadow:none"><div class="g-scroll">'+
+    '<div class="g-left"><div class="g-rowh"><div class="g-lh"><span class="eyebrow" style="flex:1">Uscita prevista</span>'+
+      '<span class="eyebrow" style="width:82px;text-align:right">Importo</span></div></div>'+
+      left+
+      (canWrite()?'<div class="g-addrow"><button type="button" id="pl_addrow">'+IC.plus+'Aggiungi pagamento</button></div>':'')+
+      '<div class="g-row" style="height:58px;background:var(--surface-2);border-bottom:0"><div class="wk-lbl">'+
+        '<div><div class="eyebrow">Cassa per settimana</div>'+
+        '<div class="mono" style="font-size:10.5px;color:var(--ink-3)">picco '+eur0(maxW)+'</div></div></div></div>'+
+      '<div class="g-row" style="height:44px;background:var(--surface-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">'+
+        '<div class="wk-lbl"><div><div class="eyebrow" style="color:var(--accent)">Totale per mese</div>'+
+        '<div class="mono" style="font-size:10.5px;color:var(--ink-3)">passa sopra per lo spaccato</div></div></div></div>'+
+    '</div>'+
+    '<div class="g-right" id="gr"><div style="width:'+W+'px">'+
+      '<div class="g-rowh" style="flex-direction:column;align-items:stretch;position:relative">'+
+        '<div class="g-mon">'+L.mon+'</div><div class="g-wk" style="position:relative">'+
+        '<div class="g-grid">'+L.bands+'</div>'+L.wk+'</div></div>'+
+      '<div style="position:relative">'+rows+
+        (canWrite()?'<div class="g-row" style="width:'+W+'px"><div class="g-track" style="width:'+W+'px"><div class="g-grid">'+L.grid+'</div></div></div>':'')+
+        '<div class="wk-tot">'+weeks.map((w,i)=>'<div style="width:'+COL+'px" data-wt="'+i+'"'+
+          (w.sum>0?' class="has"':'')+'>'+
+          (w.sum>0?'<i style="height:'+clamp(w.sum/maxW*42,4,42)+'px"></i>':'')+'</div>').join("")+'</div>'+
+        '<div class="mon-tot">'+months.map((mm,i)=>'<div data-mt="'+i+'" style="width:'+(mm.span*COL)+'px"'+
+          (mm.sum?' class="has"':'')+'>'+
+          (mm.span>=2?'<u>'+esc(mm.short)+'</u>':'')+
+          '<b>'+(mm.sum?eur0(mm.sum):"—")+'</b></div>').join("")+'</div>'+
+        (todayX>=0&&todayX<=W?'<div class="g-today" style="left:'+todayX+'px;top:0;bottom:0"></div>':'')+
+      '</div></div></div></div>'+
+    '<div class="legend"><span class="li"><span class="sw" style="background:#6E7D8C"></span>Previsto</span>'+
+    '<span class="li"><span class="sw" style="background:#C4712B"></span>Confermato</span>'+
+    '<span class="li"><span class="sw" style="background:#3C7A57"></span>Pagato</span>'+
+    '<span class="li" style="margin-left:auto">Trascina una barra per spostare la settimana · passa sopra per lo spaccato per socio</span></div></div>';
+
+  keepScroll(host,"pay",R);
+  bindPayTips(host,R,p);
+  const ar=$("#pl_addrow",host); if(ar) ar.addEventListener("click",()=>planModal(null));
+  $$("[data-pe]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
+    const it=S.plan.find(x=>x.id===b.dataset.pe); if(it) planModal(it)}));
+  $$("[data-pd]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
+    const it=S.plan.find(x=>x.id===b.dataset.pd); if(!it) return;
+    confirmBox("Elimina pagamento","Rimuovere «"+(it.label||it.supplier||"pagamento")+"» dal piano di cassa?","Elimina",
+      async()=>{ await del(ppath("plan/"+it.id)); await loadProjectData(S.pid); render(); toast("Rimosso dal piano"); return true })}));
+  $$("[data-pgd]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
+    const g=planGroups().find(x=>x.key===b.dataset.pgd); if(!g) return;
+    confirmBox("Elimina serie mensile",
+      "Rimuovere tutte le "+g.n+" rate di «"+(g.first.label||g.first.supplier||"pagamento")+"» ("+eur0(g.totV)+" in totale)?",
+      "Elimina tutta la serie",
+      async()=>{ for(const it of g.items) await del(ppath("plan/"+it.id));
+        await loadProjectData(S.pid); render(); toast(g.n+" rate eliminate"); return true })}));
+  bindPayDrag(host,R,W,p);
+}
+
+function vatExemptBase(p){
+  const cats=["lavori","progetto","altro","agenzia"].concat(p&&p.ivaOnPurchase?["acquisto"]:[]);
+  const inBase=x=>cats.indexOf(String(x.cat||"lavori"))>=0;
+  const a=(S.plan||[]).filter(x=>x.noVat&&inBase(x)).reduce((s,x)=>s+N(x.amount),0);
+  const b=(S.fin||[]).filter(f=>f.kind==="payment"&&f.noVat&&!f.planId&&inBase(f)).reduce((s,f)=>s+N(f.amount),0);
+  return a+b;
+}
+function vatCalc(p,m){
+  const r=N(p.ivaRate)||22;
+  const gross=N(m.works)+N(m.design)+N(m.other)+N(m.fee)+(p.ivaOnPurchase?N(m.buy):0);
+  const esenti=Math.max(0,Math.min(gross,vatExemptBase(p)));
+  const base=Math.max(0,gross-esenti);
+  const credit=base*r/100;
+  return {rate:r,gross:gross,esenti:esenti,base:base,credit:credit,
+    rows:IVA_RATES.map(x=>{ const debit=N(m.rev)*x/100; return {rate:x,debit:debit,net:debit-credit} })};
+}
+
+function viewSales(sc,p){
+  const m=metrics(p,S.fin,S.tasks);
+  const units=(p.units||[]);
+  const soc=p.entity==="societa";
+  const sqmOn=isSqmMode(p)&&!units.length&&N(p.sqm)>0;
+  const accT=units.length?0:accTotal(p);
+  const scen=[-10,-5,0,5,10].map(d=>Object.assign({d:d},scenAt(p,m,m.rev*(1+d/100))));
+
+  let kpis=kpi("Ricavo previsto",VE(m.rev),IC.tag,
+    units.length?units.length+" unità":(sqmOn?N(p.sqm)+" m² + accessori":"prezzo unico"),"acc");
+  if(sqmOn) kpis+=kpi("Prezzo al m²",VE(p.pricePerSqm),IC.scale,
+    N(p.sqm)+" m² · immobile "+VE(sqmBase(p)),"info");
+  if(canF("s_pl")) kpis+=kpi("Margine lordo",VE(m.gross),IC.trend,"ROI lordo "+pct(m.roiG),m.gross>=0?"good":"bad");
+  if(canF("s_roi")) kpis+=kpi("Imposte stimate",VE(m.taxes),IC.scale,(soc?"IRES+IRAP ":"Plusvalenza ")+pct(m.taxRate,1),"info")+
+    kpi("Margine netto",VE(m.net),IC.euro,"ROI netto "+pct(m.roiN),m.net>=0?"good":"bad");
+
+  /* composizione del ricavo */
+  const comp=(!canF("s_pl")||units.length||(!sqmOn&&!accT))?"":
+    '<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Composizione del ricavo</h3><div class="sp"></div>'+
+      (canWrite()&&canF("s_units")?'<button class="btn btn-sm" id="s_price2">Modifica</button>':'')+'</div><div class="card-p">'+
+      '<div class="split"><span class="l">'+(sqmOn
+        ?'Immobile · '+N(p.sqm)+' m² × '+VE(p.pricePerSqm)+'/m²'
+        :'Immobile · prezzo unico')+'</span><span class="v">'+
+        VE(sqmOn?sqmBase(p):N(p.salePrice))+'</span></div>'+
+      accList(p).map(a=>'<div class="split"><span class="l">'+esc(a.name)+
+        ' <span class="dim">× '+N(a.qty)+' · '+VE(a.unit)+' cad.</span></span>'+
+        '<span class="v">'+VE(N(a.qty)*N(a.unit))+'</span></div>').join("")+
+      (accT?'<div class="split"><span class="l">Totale accessori</span><span class="v">'+VE(accT)+'</span></div>':'')+
+      '<div class="split tot"><span class="l">Ricavo di vendita</span><span class="v">'+VE(m.rev)+'</span></div>'+
+      (sqmOn?'<div class="row" style="gap:8px;margin-top:14px">'+
+        '<div style="flex:1;min-width:130px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
+          '<div class="eyebrow">Costo totale al m²</div><div style="font-size:19px;font-weight:800;letter-spacing:-.03em">'+
+          VE(m.totalCost/N(p.sqm))+'</div><div class="dim" style="font-size:11px">costi totali '+VE(m.totalCost)+'</div></div>'+
+        '<div style="flex:1;min-width:130px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
+          '<div class="eyebrow">Pareggio al m²</div><div style="font-size:19px;font-weight:800;letter-spacing:-.03em">'+
+          VE(Math.max(0,breakEven(p,m)-accT)/N(p.sqm))+'</div><div class="dim" style="font-size:11px">sotto questo prezzo si perde capitale</div></div>'+
+      '</div>':'')+
+      '</div></div>';
+
+  const pl=!canF("s_pl")?"":'<div class="card"><div class="card-h"><h3>Conto economico dell\'operazione</h3></div><div class="card-p">'+
+      '<div class="split"><span class="l">Ricavo di vendita'+(sqmOn?' <span class="dim">('+N(p.sqm)+' m² × '+VE(p.pricePerSqm)+(accT?' + accessori':'')+')</span>':(accT?' <span class="dim">(immobile + accessori)</span>':''))+
+        '</span><span class="v">'+VE(m.rev)+'</span></div>'+
+      '<div class="split"><span class="l">Prezzo di acquisto</span><span class="v">−'+VE(m.buy)+'</span></div>'+
+      '<div class="split"><span class="l">Costi di acquisto (notaio, imposte)</span><span class="v">−'+VE(m.buyCosts)+'</span></div>'+
+      '<div class="split"><span class="l">Lavori (budget '+VE(m.works)+' · pagato '+VE(m.paid)+')</span><span class="v">−'+VE(m.works)+'</span></div>'+
+      (m.design?'<div class="split"><span class="l">Costi di progetto · progettista, DL, pratiche</span>'+
+        '<span class="v">−'+VE(m.design)+'</span></div>':'')+
+      '<div class="split"><span class="l">Altri costi</span><span class="v">−'+VE(m.other)+'</span></div>'+
+      (m.finCost?'<div class="split"><span class="l">Oneri finanziari · '+(m.loan?m.loan.monthsToExit+' mesi':'')+' istruttoria, interessi, estinzione'+
+        (m.loan?' <span class="dim">('+eurN(m.debt)+' al '+pct(m.loan.annual,2)+')</span>':'')+
+        '</span><span class="v">−'+eurN(m.finCost)+'</span></div>':'')+
+      '<div class="split"><span class="l">Fee agenzia'+((p.fees&&p.fees.vat)?" (IVA incl.)":"")+'</span><span class="v">−'+VE(m.fee)+'</span></div>'+
+      '<div class="split"><span class="l"><b style="color:var(--ink)">Totale costi dell\'operazione</b></span>'+
+        '<span class="v">−'+VE(m.totalCost)+'</span></div>'+
+      '<div class="split tot"><span class="l">Margine lordo</span><span class="v" style="color:'+(m.gross>=0?"var(--good)":"var(--bad)")+'">'+VE(m.gross)+'</span></div>'+
+      (canF("s_roi")?'<div class="split"><span class="l">'+(soc?"IRES + IRAP":"Imposta su plusvalenza")+' · '+pct(m.taxRate,1)+'</span><span class="v" style="color:var(--bad)">−'+VE(m.taxes)+'</span></div>'+
+      '<div class="split tot"><span class="l">Margine netto</span><span class="v" style="color:'+(m.net>=0?"var(--good)":"var(--bad)")+'">'+VE(m.net)+'</span></div>'+
+      '<div class="row" style="gap:8px;margin-top:16px">'+
+        '<div style="flex:1;min-width:130px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
+          '<div class="eyebrow">ROI lordo su capitale proprio</div><div style="font-size:21px;font-weight:800;letter-spacing:-.035em">'+pct(m.roiG)+'</div>'+
+          '<div class="dim" style="font-size:11px">capitale proprio '+VE(m.capital)+'</div></div>'+
+        '<div style="flex:1;min-width:130px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px">'+
+          '<div class="eyebrow">ROI netto su capitale proprio</div><div style="font-size:21px;font-weight:800;letter-spacing:-.035em;color:'+(m.roiN>=0?"var(--good)":"var(--bad)")+'">'+pct(m.roiN)+'</div>'+
+          '<div class="dim" style="font-size:11px">'+(m.debt?'capitale proprio '+eurN(m.capital)+' · leva '+pct(m.ltc,0):'ROI su costi '+pct(m.roiCost))+'</div></div>'+
+      '</div>':'')+'</div></div>';
+
+  /* sensitività sul prezzo al m² */
+  const scenQ=!sqmOn?[]:[-10,-5,0,5,10].map(d=>{
+    const pps=N(p.pricePerSqm)*(1+d/100);
+    return Object.assign({d:d,pps:pps},scenAt(p,m,sqmBase(p,pps)+accT));
+  });
+  const sensQ=(!sqmOn||!canF("s_sens"))?"":
+    '<div class="card"><div class="card-h"><h3>Margine al variare del prezzo al m²</h3><div class="sp"></div>'+
+      '<span class="chip acc">'+VE(p.pricePerSqm)+'/m²</span></div><div class="tbl-wrap">'+
+      '<table class="tbl"><thead><tr><th>Scenario</th><th class="r">€/m²</th><th class="r">Ricavo</th>'+
+      '<th class="r">Margine lordo</th><th class="r">Margine netto</th><th class="r">ROI netto</th></tr></thead><tbody>'+
+      scenQ.map(s=>'<tr'+(s.d===0?' style="background:var(--surface-2)"':'')+'><td>'+
+        (s.d===0?'<b>Base</b>':'<b style="color:'+(s.d>0?"var(--good)":"var(--bad)")+'">'+(s.d>0?"+":"")+s.d+'%</b>')+'</td>'+
+        '<td class="r">'+VE(s.pps)+'</td>'+
+        '<td class="r">'+VE(s.rev)+'</td>'+
+        '<td class="r">'+VE(s.gross)+'</td>'+
+        '<td class="r" style="color:'+(s.net>=0?"var(--good)":"var(--bad)")+';font-weight:700">'+VE(s.net)+'</td>'+
+        '<td class="r">'+pct(s.roi)+'</td></tr>').join("")+
+      '</tbody></table></div>'+
+      '<div class="card-p" style="border-top:1px solid var(--line-2)">'+
+        '<p class="dim" style="font-size:11.5px">Il valore degli accessori ('+VE(accT)+') resta fisso: varia solo il prezzo al m² dell\'immobile. '+
+        'Margini al netto di fee agenzia e oneri finanziari.</p></div></div>';
+
+  const sens=!canF("s_sens")?"":'<div class="card"><div class="card-h"><h3>'+(sqmOn?'Sensitività sul ricavo totale':'Sensitività prezzo')+'</h3></div><div class="tbl-wrap">'+
+      '<table class="tbl"><thead><tr><th>Scenario</th><th class="r">Ricavo</th><th class="r">Netto</th><th class="r">ROI netto</th></tr></thead><tbody>'+
+      scen.map(s=>'<tr'+(s.d===0?' style="background:var(--surface-2)"':'')+'><td>'+
+        (s.d===0?'<b>Base</b>':(s.d>0?"+":"")+s.d+"%")+'</td>'+
+        '<td class="r">'+VE(s.rev)+'</td>'+
+        '<td class="r" style="color:'+(s.net>=0?"var(--good)":"var(--bad)")+';font-weight:700">'+VE(s.net)+'</td>'+
+        '<td class="r">'+pct(s.roi)+'</td></tr>').join("")+
+      '</tbody></table></div>'+
+      '<div class="card-p" style="border-top:1px solid var(--line-2)">'+
+        '<div class="eyebrow" style="margin-bottom:8px">Punto di pareggio</div>'+
+        '<div style="font-size:15px;font-weight:700">'+VE(breakEven(p,m))+'</div>'+
+        '<div class="dim" style="font-size:11.5px;margin-top:3px">prezzo di vendita minimo per non perdere capitale</div>'+
+      '</div></div>';
+
+  const _parts=(p.partners||[]);
+  const _qs=_parts.reduce((a,x)=>a+N(x.quota),0)||100;
+  const _mx=_parts.reduce((a,x)=>Math.max(a,N(x.quota)),0)||1;
+  const un=!canF("s_profit")?"":'<div class="card"><div class="card-h"><h3>Utile netto per socio</h3><div class="sp"></div>'+
+      '<span class="chip">'+(_parts.length?_parts.length+' soci':'nessun socio')+'</span>'+
+      (canWrite()?'<button class="btn btn-sm" id="s_soci">Soci e quote</button>':'')+'</div>'+
+      (_parts.length?
+        '<div class="ptot">'+
+          '<div><div class="eyebrow">Utile netto da ripartire</div>'+
+            '<div class="big" style="color:'+(m.net>=0?"var(--good)":"var(--bad)")+'">'+VE(m.net)+'</div></div>'+
+          '<div class="ptot-k"><div class="eyebrow">Capitale proprio</div><b>'+VE(m.capital)+'</b></div>'+
+          '<div class="ptot-k"><div class="eyebrow">Utile lordo</div><b>'+VE(m.gross)+'</b></div>'+
+          '<div class="ptot-k"><div class="eyebrow">ROI netto</div><b style="color:'+(m.roiN>=0?"var(--good)":"var(--bad)")+'">'+pct(m.roiN)+'</b></div>'+
+        '</div>'+
+        _parts.map(x=>{
+          const q=N(x.quota)/_qs;
+          const cap=m.capital*q, gl=m.gross*q, nt=m.net*q;
+          const roi=cap?nt/cap*100:0;
+          return '<div class="psoc">'+
+            '<span class="av">'+esc(initials(x.name))+'</span>'+
+            '<div class="who">'+
+              '<div class="row" style="gap:8px"><span class="nm">'+esc(x.name)+'</span>'+
+              '<span class="chip">'+pct(N(x.quota),N(x.quota)%1?2:0)+'</span></div>'+
+              '<div class="qb"><i style="width:'+clamp(N(x.quota)/_mx*100,3,100)+'%"></i></div>'+
+              '<div class="meta"><span>Capitale <b>'+VE(cap)+'</b></span>'+
+                '<span>Utile lordo <b>'+VE(gl)+'</b></span>'+
+                '<span>ROI netto <b>'+pct(roi)+'</b></span></div>'+
+            '</div>'+
+            '<div class="val"><b style="color:'+(nt>=0?"var(--good)":"var(--bad)")+'">'+VE(nt)+'</b>'+
+              '<span>utile netto</span></div>'+
+          '</div>'}).join("")+
+        '<div class="card-p" style="border-top:1px solid var(--line-2)">'+
+          '<p class="dim" style="font-size:11.5px">Ripartizione sulle quote, al netto di fee agenzia, oneri finanziari e '+
+          (soc?'IRES + IRAP':'imposta sulla plusvalenza')+' al '+pct(m.taxRate,1)+'.'+
+          (Math.abs(_qs-100)>0.01?' <b style="color:var(--warn)">Attenzione: le quote sommano a '+pct(_qs,2)+', non a 100%.</b>':'')+'</p></div>'
+       :'<div class="empty"><div class="big">Nessun socio configurato</div>'+
+        'Aggiungi i soci e le loro quote per ripartire l\'utile dell\'operazione.'+
+        (canWrite()?'<div style="margin-top:12px"><button class="btn btn-sm" id="s_soci">Soci e quote</button></div>':'')+'</div>')+
+      '</div>';
+  const fee=!canF("s_fee")?"":'<div class="card"><div class="card-h"><h3>Accordo con l\'agenzia</h3></div><div class="card-p">'+feeSummary(p,m)+'</div></div>';
+  const vc=vatCalc(p,m);
+  const ivaCard=!canF("s_pl")?"":'<div class="card" style="margin-top:12px"><div class="card-h"><h3>Posizione IVA</h3>'+
+    '<div class="sp"></div><span class="chip">aliquota costi '+vc.rate+'%</span></div><div class="card-p">'+
+    '<p class="dim" style="font-size:11.5px;margin-bottom:12px">Calcolata sui valori imponibili, indipendente dallo switch «+ IVA».</p>'+
+    '<div class="split"><span class="l">Costi su cui si calcola l\'IVA'+(p.ivaOnPurchase?' (acquisto incluso)':'')+'</span>'+
+      '<span class="v">'+eurN(vc.gross)+'</span></div>'+
+    (vc.esenti?'<div class="split"><span class="l">di cui non soggetti a IVA <span class="dim">(oneri, bolli, imposte)</span></span>'+
+      '<span class="v">−'+eurN(vc.esenti)+'</span></div>'+
+      '<div class="split"><span class="l">Base imponibile</span><span class="v">'+eurN(vc.base)+'</span></div>':'')+
+    '<div class="split"><span class="l">IVA a credito sui costi · '+vc.rate+'%</span>'+
+      '<span class="v" style="color:var(--good)">'+eurN(vc.credit)+'</span></div>'+
+    '<div class="eyebrow" style="margin:16px 0 9px">Se vendi con IVA — ricavo '+eurN(m.rev)+'</div>'+
+    '<div class="ivahead"><span>Aliquota</span><span>IVA a debito</span><span>IVA a credito</span><span>Saldo</span></div>'+
+    vc.rows.map(r=>'<div class="ivarow"><span>'+r.rate+'%</span>'+
+      '<span class="v">'+eurN(r.debit)+'</span>'+
+      '<span class="v" style="color:var(--good)">'+eurN(vc.credit)+'</span>'+
+      '<span class="v" style="color:'+(r.net>0?"var(--bad)":"var(--good)")+'">'+
+      (r.net>0?"debito ":"credito ")+eurN(Math.abs(r.net))+'</span></div>').join("")+
+    '<p class="dim" style="font-size:11.5px;margin-top:12px">Saldo positivo = IVA da versare all\'Erario; saldo negativo = IVA a credito '+
+    '(rimborso o compensazione). Verifica il regime applicabile con il commercialista.</p></div></div>';
+
+  const page=el("div","page");
+  page.innerHTML='<div class="page-head"><div><h1>Sales / Exit</h1>'+
+    '<div class="sub">Previsioni di vendita, fee agenzia e fiscalità '+(soc?"societaria":"su persone fisiche")+'</div></div><div class="sp"></div>'+
+    (canWrite()?'<div class="row">'+
+      (canF("s_units")?'<button class="btn btn-sm btn-pri" id="s_price">Prezzo di vendita</button>':'')+
+      (canF("s_units")?'<button class="btn btn-sm" id="s_units">Unità</button>':'')+
+      (canF("s_fee")?'<button class="btn btn-sm" id="s_fee">Agenzia</button>':'')+
+      (canF("s_roi")?'<button class="btn btn-sm" id="s_tax">Fiscalità</button>':'')+
+      '</div>':'')+'</div>'+
+    '<div class="grid g4" style="margin-bottom:12px">'+kpis+'</div>'+
+    comp+
+    (pl||sens?'<div class="grid '+(pl&&sens?"g21":"g1")+'" style="margin-bottom:12px">'+pl+sens+'</div>':'')+
+    (sensQ?'<div class="grid g1" style="margin-bottom:12px">'+sensQ+'</div>':'')+
+    (un||fee?'<div class="grid '+(un&&fee?"g2":"g1")+'">'+un+fee+'</div>':'')+ivaCard;
+  sc.innerHTML=""; sc.appendChild(page);
+  const pr=$("#s_price",page); if(pr) pr.addEventListener("click",()=>priceModal(p));
+  const pr2=$("#s_price2",page); if(pr2) pr2.addEventListener("click",()=>priceModal(p));
+  const u=$("#s_units",page); if(u) u.addEventListener("click",()=>unitsModal(p));
+  const f=$("#s_fee",page); if(f) f.addEventListener("click",()=>feeModal(p));
+  const t=$("#s_tax",page); if(t) t.addEventListener("click",()=>taxModal(p));
+  const so=$("#s_soci",page); if(so) so.addEventListener("click",()=>partnersModal(p));
+}
+
+async function exportPayXlsx(p){
+  if(!S.dl){ toast("Download non disponibile in questa vista",true); return }
+  if(!S.plan.length){ toast("Nessun pagamento pianificato da esportare",true); return }
+  const k=vatK(), iva=vatOn();
+  const m=metrics(p,S.fin,S.tasks);
+  const R=ganttRange(S.tasks,p);
+  const plan=S.plan.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const parts=(p.partners||[]);
+  const qSum=parts.reduce((s,x)=>s+N(x.quota),0)||100;
+  const tot=plan.reduce((s,x)=>s+N(x.amount)*(x.noVat?1:k),0);
+  const pagato=plan.filter(x=>x.status==="pagato").reduce((s,x)=>s+N(x.amount)*(x.noVat?1:k),0);
+  const CAT={lavori:"Lavori / cantiere",progetto:"Progetto e permessi",acquisto:"Acquisto immobile",
+    agenzia:"Agenzia / commerciale",finanziari:"Oneri finanziari",altro:"Altro"};
+  /* --- foglio 1: piano pagamenti --- */
+  const weeks=[]; for(let w=0;w<R.weeks;w++) weeks.push(addD(R.start,w*7));
+  const NC=9;
+  const rows=[];
+  const head=[T("PIANO PAGAMENTI",1)]; for(let i=1;i<NC+weeks.length;i++) head.push(T("",1));
+  rows.push(head);
+  const sub=[T(String(p.name||"").toUpperCase()+"  ·  "+String(p.address||p.city||"").toUpperCase(),2)];
+  for(let i=1;i<NC+weeks.length;i++) sub.push(T("",2));
+  rows.push(sub);
+  const sub2=[T("Periodo "+fmtD(iso(R.start))+" – "+fmtD(iso(addD(R.start,R.weeks*7-1)))+
+    "  ·  Importi "+(iva?"con IVA "+vatRate()+"% inclusa":"imponibili")+
+    "  ·  Generato il "+fmtD(iso(new Date())),2)];
+  for(let i=1;i<NC+weeks.length;i++) sub2.push(T("",2));
+  rows.push(sub2);
+  rows.push([]);
+  rows.push([T("TOTALE PIANIFICATO",9),T("",9),T("GIÀ PAGATO",9),T("",9),T("DA PAGARE",9),T("",9),T("BUDGET LAVORI",9),T("",9),T("",9)]);
+  rows.push([NUM(Math.round(tot),10),T("",10),NUM(Math.round(pagato),10),T("",10),
+    NUM(Math.round(tot-pagato),10),T("",10),NUM(Math.round(m.works*k),10),T("",10),T("",10)]);
+  rows.push([]);
+  const hdr=[T("VOCE",3),T("FORNITORE",3),T("SETTIMANA",3),T("FINE",3),T("SETT.",3),
+    T("CATEGORIA",3),T("A CARICO DI",3),T("STATO",3),T("IMPORTO",3)];
+  weeks.forEach(d=>hdr.push(T(String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0"),3)));
+  rows.push(hdr);
+  const weekly=new Array(R.weeks).fill(0);
+  plan.forEach(it=>{
+    const wi=weeksBetween(R.start,pd(it.date)||R.start);
+    const span=Math.max(1,N(it.weeks)||1);
+    const amt=N(it.amount)*(it.noVat?1:k);
+    if(wi>=0&&wi<R.weeks) weekly[wi]+=amt;
+    const who=parts.find(x=>x.id===it.paidBy);
+    const sSt=it.status==="pagato"?11:it.status==="confermato"?12:13;
+    const r=[T(String(it.label||"Pagamento").toUpperCase(),4),T(String(it.supplier||"").toUpperCase(),4),
+      NUM(excelSerial(it.date),7),NUM(excelSerial(iso(addD(pd(it.date)||new Date(),span*7-1))),7),
+      NUM(span,8),T(CAT[it.cat]||"Altro",4),T(who?who.name:"Tutti i soci su quota",4),
+      T(pstatLabel(it.status),sSt),NUM(Math.round(amt),6)];
+    for(let w=0;w<R.weeks;w++) r.push(w>=wi&&w<wi+span?NUM(Math.round(amt/span),14):T("",0));
+    rows.push(r);
+  });
+  const totRow=[T("TOTALE",17),T("",17),T("",17),T("",17),T("",17),T("",17),T("",17),T("",17),NUM(Math.round(tot),15)];
+  for(let w=0;w<R.weeks;w++) totRow.push(weekly[w]?NUM(Math.round(weekly[w]),15):T("",15));
+  rows.push(totRow);
+  const cols=[34,24,13,13,8,22,22,15,16]; weeks.forEach(()=>cols.push(11));
+  const lastCol=colName(NC+weeks.length-1);
+  const sheet1=xsheet(rows,{cols:cols,heights:{0:34,1:18,2:18,6:30},
+    merges:["A1:"+lastCol+"1","A2:"+lastCol+"2","A3:"+lastCol+"3","A5:B5","C5:D5","E5:F5","G5:H5","A6:B6","C6:D6","E6:F6","G6:H6"]});
+  /* --- foglio 2: cassa settimanale --- */
+  const r2=[[T("CASSA SETTIMANALE",1),T("",1),T("",1),T("",1)],
+            [T(String(p.name||"").toUpperCase(),2),T("",2),T("",2),T("",2)],[],
+            [T("SETTIMANA",3),T("USCITE",3),T("CUMULATO",3),T("% SUL PIANO",3)]];
+  let cum=0;
+  weeks.forEach((d,i)=>{ if(!weekly[i]) return; cum+=weekly[i];
+    r2.push([NUM(excelSerial(iso(d)),7),NUM(Math.round(weekly[i]),5),NUM(Math.round(cum),6),
+      NUM(tot?Math.round(cum/tot*1000)/1000:0,16)]) });
+  r2.push([T("TOTALE",17),NUM(Math.round(tot),15),T("",15),T("",15)]);
+  const sheet2=xsheet(r2,{cols:[18,18,18,16],heights:{0:30,1:18},merges:["A1:D1","A2:D2"]});
+  /* --- foglio 3: ripartizione soci --- */
+  const r3=[[T("RIPARTIZIONE PER QUOTE",1),T("",1),T("",1),T("",1),T("",1)],
+            [T("Quanto tocca a ciascun socio sul piano di cassa",2),T("",2),T("",2),T("",2),T("",2)],[],
+            [T("SOCIO",3),T("QUOTA",3),T("SU PIANO",3),T("GIÀ VERSATO",3),T("DIFFERENZA",3)]];
+  parts.forEach(x=>{
+    const versato=S.fin.filter(f=>f.kind==="payment").reduce((s,f)=>s+paidByOf(f,x.id),0)*k;
+    const dovuto=tot*(N(x.quota)/qSum);
+    r3.push([T(x.name,4),NUM(Math.round(N(x.quota)*10)/1000,16),NUM(Math.round(dovuto),5),
+      NUM(Math.round(versato),5),NUM(Math.round(versato-dovuto),6)]);
+  });
+  r3.push([T("TOTALE",17),NUM(Math.round(qSum*10)/1000,16),NUM(Math.round(tot),15),
+    NUM(Math.round(m.paid*k),15),T("",15)]);
+  const sheet3=xsheet(r3,{cols:[28,12,18,18,18],heights:{0:30,1:18},merges:["A1:E1","A2:E2"]});
+  /* --- assemblaggio --- */
+  const ct='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+    '<Default Extension="xml" ContentType="application/xml"/>'+
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
+    '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+
+    '<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+
+    '<Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+  const rels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+  const wb='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '+
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'+
+    '<sheet name="Piano pagamenti" sheetId="1" r:id="rId1"/>'+
+    '<sheet name="Cassa settimanale" sheetId="2" r:id="rId2"/>'+
+    '<sheet name="Ripartizione soci" sheetId="3" r:id="rId3"/></sheets></workbook>';
+  const wbr='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'+
+    '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>'+
+    '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/>'+
+    '<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
+  const blob=zipStore([
+    {name:"[Content_Types].xml",data:ct},
+    {name:"_rels/.rels",data:rels},
+    {name:"xl/workbook.xml",data:wb},
+    {name:"xl/_rels/workbook.xml.rels",data:wbr},
+    {name:"xl/styles.xml",data:XSTYLES},
+    {name:"xl/worksheets/sheet1.xml",data:sheet1},
+    {name:"xl/worksheets/sheet2.xml",data:sheet2},
+    {name:"xl/worksheets/sheet3.xml",data:sheet3}
+  ]);
+  const fn="piano-pagamenti-"+String(p.name||"progetto").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".xlsx";
+  try{ await S.dl.save({filename:fn,data:blob}); toast("Excel salvato") }
+  catch(e){ if(!e||e.code!=="declined") toast("Export non riuscito"+(e&&e.code?" ("+e.code+")":""),true) }
+}
+
+function finModal(f,kind){
+  const p=P(); const isNew=!f; const isReq=kind==="request";
+  const parts=(p.partners||[]);
+  const qSum=parts.reduce((s,x)=>s+N(x.quota),0)||100;
+  const openPlan=S.plan.filter(x=>x.status!=="pagato"||(f&&f.planId===x.id));
+  const split={}; let touched=false;
+  const seed=amount=>{
+    parts.forEach(x=>{ split[x.id]={on:true,amount:N(amount)*(N(x.quota)/qSum)} });
+  };
+  if(!isNew){
+    const sp=paidSplit(f);
+    parts.forEach(x=>{ split[x.id]={on:false,amount:0} });
+    if(sp.length){ sp.forEach(x=>{ if(split[x.id]) split[x.id]={on:true,amount:x.amount} }); touched=true }
+    else seed(f.amount);
+  } else seed(0);
+
+  const b=el("div");
+  b.innerHTML=
+    (!isReq&&openPlan.length?'<div class="field"><label for="x_plan">Collega a un pagamento previsto</label>'+
+      '<select class="inp" id="x_plan"><option value="">— nessun collegamento —</option>'+
+      openPlan.map(x=>'<option value="'+x.id+'"'+((f&&f.planId===x.id)?" selected":"")+'>'+
+        esc((x.label||"Pagamento")+(x.supplier?" · "+x.supplier:"")+" · "+eurN(x.amount)+" · sett. "+fmtD(x.date))+
+        '</option>').join("")+'</select>'+
+      '<div class="dim" style="font-size:11.5px;margin-top:5px">Selezionandolo, importo e fornitore si compilano da soli.</div></div>':'')+
+    '<div class="f2">'+fld("x_sup","Fornitore / impresa","text",f?f.supplier:"")+
+      fld("x_amt","Importo €","number",f?f.amount:"",'step="0.01"')+'</div>'+
+    fld("x_desc","Descrizione","text",f?f.desc:"")+
+    '<div class="f2">'+fld("x_date",isReq?"Data richiesta":"Data pagamento","date",f?f.date:iso(new Date()))+
+      (isReq?fld("x_due","Scadenza","date",f?f.due:"")
+            :sel("x_meth","Modalità",f?f.method:"bonifico",METHODS))+'</div>'+
+    '<div class="f2">'+
+      (isReq?sel("x_st","Stato",f?f.status:"draft",FSTAT):'<div></div>')+
+      sel("x_cat","Voce di costo",f?f.cat:"lavori",[["lavori","Lavori / cantiere"],["progetto","Progetto e permessi"],
+        ["acquisto","Acquisto immobile"],["agenzia","Agenzia / commerciale"],["finanziari","Oneri finanziari"],["altro","Altro"]])+
+    '</div>'+
+    (!isReq?'<div class="pgrp"><div class="h"><span class="eyebrow">Chi ha pagato</span>'+
+      '<button type="button" class="mini-link" id="sp_q">per quota</button>'+
+      '<button type="button" class="mini-link" id="sp_e">parti uguali</button>'+
+      '<button type="button" class="mini-link" id="sp_n">deseleziona</button></div>'+
+      '<div id="spl"></div>'+
+      '<div class="row" style="justify-content:space-between;margin-top:9px;padding-top:9px;border-top:1px solid var(--line-2)">'+
+      '<span class="eyebrow">Ripartito</span><span id="spsum" class="mono" style="font-size:12.5px;font-weight:700"></span></div>'+
+      '</div>':'')+
+    fld("x_note","Note","textarea",f?f.note:"")+
+    '<label class="perm" style="margin-top:4px"><input type="checkbox" id="x_novat" data-nocase'+((f&&f.noVat)?" checked":"")+'>'+
+      '<span class="t">Voce non soggetta a IVA'+
+      '<span class="dim" style="display:block;font-weight:500">Oneri di urbanizzazione, bolli, imposte: resta a questo importo anche con lo switch «+ IVA» attivo.</span></span></label>'+
+    (!isReq&&openPlan.length?'<label class="perm" id="x_mkw" style="margin-top:4px"><input type="checkbox" id="x_mk" checked>'+
+      '<span class="t">Segna il pagamento previsto collegato come pagato</span></label>':'');
+
+  const amtEl=$("#x_amt",b);
+  const drawSplit=()=>{
+    const host=$("#spl",b); if(!host) return;
+    host.innerHTML="";
+    if(!parts.length){ host.innerHTML='<div class="dim" style="font-size:12px">Nessun socio configurato: aggiungili dalla scheda progetto.</div>'; return }
+    parts.forEach(x=>{
+      const st=split[x.id]||(split[x.id]={on:false,amount:0});
+      const row=el("div","srow");
+      row.innerHTML='<label class="perm" style="min-width:0"><input type="checkbox" data-pt="'+x.id+'"'+(st.on?" checked":"")+'>'+
+        '<span class="t" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.name)+
+        ' <span class="dim" style="font-weight:500">'+pct(N(x.quota),N(x.quota)%1?2:0)+'</span></span></label>'+
+        '<input class="inp num" type="number" step="0.01" value="'+(st.on?Math.round(st.amount*100)/100:"")+'"'+(st.on?"":" disabled")+'>';
+      const cb=$("input[data-pt]",row), am=$$("input",row)[1];
+      cb.addEventListener("change",()=>{
+        st.on=cb.checked; am.disabled=!cb.checked;
+        if(cb.checked&&!N(am.value)) rebalance(); else { st.amount=N(am.value); sum() }
+        drawSplit();
+      });
+      am.addEventListener("input",()=>{ touched=true; st.amount=N(am.value); sum() });
+      host.appendChild(row);
+    });
+    sum();
+  };
+  const sum=()=>{
+    const el2=$("#spsum",b); if(!el2) return;
+    let t=0; parts.forEach(x=>{ if(split[x.id]&&split[x.id].on) t+=N(split[x.id].amount) });
+    const tot=N(amtEl?amtEl.value:0);
+    const d=t-tot;
+    el2.innerHTML=eurN(t)+' di '+eurN(tot)+
+      (Math.abs(d)>0.5?' <span style="color:'+(d>0?"var(--bad)":"var(--warn)")+'">('+(d>0?"+":"")+eurN(d)+')</span>'
+                      :' <span style="color:var(--good)">✓</span>');
+  };
+  const rebalance=(mode)=>{
+    const tot=N(amtEl?amtEl.value:0);
+    const on=parts.filter(x=>split[x.id]&&split[x.id].on);
+    if(!on.length) return;
+    if(mode==="equal"){ on.forEach(x=>split[x.id].amount=tot/on.length) }
+    else { const qs=on.reduce((s,x)=>s+N(x.quota),0)||on.length;
+      on.forEach(x=>split[x.id].amount=tot*(N(x.quota)/qs)) }
+    touched=false;
+  };
+  if(!isReq){
+    drawSplit();
+    const q=$("#sp_q",b); if(q) q.addEventListener("click",()=>{parts.forEach(x=>{if(!split[x.id])split[x.id]={on:true,amount:0};split[x.id].on=true});rebalance("quota");drawSplit()});
+    const e2=$("#sp_e",b); if(e2) e2.addEventListener("click",()=>{parts.forEach(x=>{if(!split[x.id])split[x.id]={on:true,amount:0};split[x.id].on=true});rebalance("equal");drawSplit()});
+    const n2=$("#sp_n",b); if(n2) n2.addEventListener("click",()=>{parts.forEach(x=>{if(split[x.id]){split[x.id].on=false;split[x.id].amount=0}});drawSplit()});
+    if(amtEl) amtEl.addEventListener("input",()=>{ if(!touched){rebalance("quota");drawSplit()} else sum() });
+    const ps=$("#x_plan",b);
+    if(ps) ps.addEventListener("change",()=>{
+      const it=S.plan.find(x=>x.id===ps.value);
+      if(!it) return;
+      $("#x_sup",b).value=(it.supplier||"").toUpperCase();
+      $("#x_desc",b).value=(it.label||"").toUpperCase();
+      amtEl.value=N(it.amount);
+      $("#x_cat",b).value=it.cat||"lavori";
+      const nv=$("#x_novat",b); if(nv) nv.checked=!!it.noVat;
+      if(it.paidBy&&split[it.paidBy]){ parts.forEach(x=>{split[x.id].on=false;split[x.id].amount=0});
+        split[it.paidBy]={on:true,amount:N(it.amount)}; touched=true }
+      else { parts.forEach(x=>{if(split[x.id])split[x.id].on=true}); rebalance("quota") }
+      drawSplit();
+      toast("Dati compilati dal piano pagamenti");
+    });
+  }
+  modal({title:(isNew?"Nuovo ":"Modifica ")+(isReq?"richiesta di pagamento":"pagamento"),wide:true,body:b,
+    ok:isNew?"Registra":"Salva",
+    danger:isNew?null:"Elimina",
+    onDelete:async()=>{ await del(ppath("fin/"+f.id)); await loadProjectData(S.pid); render(); toast("Eliminato"); return true },
+    onOk:async(body)=>{
+      const amt=N($("#x_amt",body).value);
+      if(!amt){toast("Inserisci l'importo",true);return false}
+      const data={kind:kind,supplier:$("#x_sup",body).value.trim(),desc:$("#x_desc",body).value.trim(),
+        amount:amt,date:$("#x_date",body).value||iso(new Date()),cat:$("#x_cat",body).value,
+        note:$("#x_note",body).value.trim(),by:S.me.id,
+        noVat:!!($("#x_novat",body)&&$("#x_novat",body).checked)};
+      if(isReq){ data.due=$("#x_due",body).value; data.status=$("#x_st",body).value }
+      else{
+        data.method=$("#x_meth",body).value;
+        const planEl=$("#x_plan",body);
+        data.planId=planEl?planEl.value:"";
+        let list=parts.filter(x=>split[x.id]&&split[x.id].on)
+          .map(x=>({id:x.id,amount:Math.round(N(split[x.id].amount)*100)/100}));
+        if(list.length){
+          const t=list.reduce((s,x)=>s+x.amount,0);
+          const d=Math.round((amt-t)*100)/100;
+          if(Math.abs(d)>0.005) list[0].amount=Math.round((list[0].amount+d)*100)/100;
+        }
+        data.paidByList=list;
+        data.paidBy=list.length===1?list[0].id:"";
+      }
+      const ok=isNew?await put(ppath("fin/"+uid("f")),data):await patch(ppath("fin/"+f.id),data);
+      if(!ok) return false;
+      if(!isReq&&data.planId&&$("#x_mk",body)&&$("#x_mk",body).checked)
+        await patch(ppath("plan/"+data.planId),{status:"pagato"});
+      await loadProjectData(S.pid); render(); toast(isNew?"Registrato":"Aggiornato"); return true;
+    }});
+}
+
+function planModal(it){
+  const p=P(); const isNew=!it;
+  const parts=(p.partners||[]).map(x=>[x.id,x.name+" ("+pct(N(x.quota),0)+")"]);
+  const sib=it&&it.recId?(S.plan||[]).filter(x=>x.recId===it.recId):[];
+  const b=el("div");
+  b.innerHTML=
+    (it&&it.recId?'<div class="notice" style="margin-bottom:14px">'+IC.ref+
+      '<div>Rata <b>'+(N(it.recIdx)||1)+' di '+(N(it.recTot)||1)+'</b> di una serie mensile ('+sib.length+' rate nel piano).</div></div>':'')+
+    '<div class="f2">'+fld("q_lab","Voce","text",it?it.label:"","placeholder=\"es. 2° SAL impresa\"")+
+      fld("q_sup","Fornitore","text",it?it.supplier:"")+'</div>'+
+    '<div class="f3">'+fld("q_amt","Importo €","number",it?it.amount:"",'step="100"')+
+      fld("q_date","Settimana di pagamento","date",it?it.date:iso(monday(new Date())))+
+      fld("q_wk","Durata (settimane)","number",it?(N(it.weeks)||1):1,'min="1" max="26"')+'</div>'+
+    '<div class="f2">'+sel("q_st","Stato",it?it.status:"previsto",PSTAT)+
+      (parts.length?sel("q_by","A carico di / pagato da",it?it.paidBy:"",[["","Tutti i soci su quota"]].concat(parts))
+        :'<div class="field"><label>A carico di</label><input class="inp" disabled value="Nessun socio configurato"></div>')+'</div>'+
+    sel("q_cat","Voce di costo",it?it.cat:"lavori",[["lavori","Lavori / cantiere"],["progetto","Progetto e permessi"],
+      ["acquisto","Acquisto immobile"],["agenzia","Agenzia / commerciale"],["finanziari","Oneri finanziari"],["altro","Altro"]])+
+    fld("q_note","Note","textarea",it?it.note:"")+
+    '<label class="perm" style="margin-top:4px"><input type="checkbox" id="q_novat" data-nocase'+((it&&it.noVat)?" checked":"")+'>'+
+      '<span class="t">Voce non soggetta a IVA'+
+      '<span class="dim" style="display:block;font-weight:500">Oneri di urbanizzazione, bolli, imposte: resta a questo importo anche con lo switch «+ IVA» attivo.</span></span></label>'+
+    (isNew?'<label class="perm" style="margin-top:6px"><input type="checkbox" id="q_rec" data-nocase>'+
+      '<span class="t">Pagamento ricorrente ogni mese<span class="dim" style="display:block;font-weight:500">'+
+      'Per le uscite fisse: rata del finanziamento, canoni, utenze. Crea una rata al mese a partire dalla data indicata.</span></span></label>'+
+      '<div id="q_recbox" class="hide" style="margin-top:6px">'+
+      '<div class="f2">'+fld("q_recn","Per quanti mesi","number",12,'min="2" max="120"')+
+        '<div class="field"><label>Totale della serie</label><input class="inp" id="q_rectot" disabled value="—"></div>'+
+      '</div></div>':'')+
+    (it&&it.recId?'<label class="perm" style="margin-top:6px"><input type="checkbox" id="q_all" data-nocase>'+
+      '<span class="t">Applica a questa rata e a tutte le successive'+
+      '<span class="dim" style="display:block;font-weight:500">Le date restano quelle di ciascuna rata; cambiano importo, voce, stato e note.</span></span></label>':'')+
+    (it&&it.status!=="pagato"?'<label class="perm" style="margin-top:4px"><input type="checkbox" id="q_mk">'+
+      '<span class="t">Segna come pagato e registralo nei pagamenti effettuati</span></label>':'');
+
+  const refreshRec=()=>{
+    const box=$("#q_recbox",b), ck=$("#q_rec",b);
+    if(!box||!ck) return;
+    box.classList.toggle("hide",!ck.checked);
+    const n=clamp(N($("#q_recn",b).value)||12,2,120);
+    const tot=$("#q_rectot",b);
+    if(tot) tot.value=ck.checked?(n+" rate × "+eur0(N($("#q_amt",b).value))+" = "+eur0(n*N($("#q_amt",b).value))):"—";
+  };
+  const rc=$("#q_rec",b); if(rc) rc.addEventListener("change",refreshRec);
+  const rn=$("#q_recn",b); if(rn) rn.addEventListener("input",refreshRec);
+  const ra=$("#q_amt",b); if(ra) ra.addEventListener("input",refreshRec);
+
+  const readForm=body=>({
+    label:$("#q_lab",body).value.trim(),supplier:$("#q_sup",body).value.trim(),
+    amount:N($("#q_amt",body).value),
+    weeks:clamp(N($("#q_wk",body).value)||1,1,26),
+    paidBy:$("#q_by",body)?$("#q_by",body).value:"",
+    cat:$("#q_cat",body).value,note:$("#q_note",body).value.trim(),
+    noVat:!!($("#q_novat",body)&&$("#q_novat",body).checked)
+  });
+
+  modal({title:isNew?"Nuovo pagamento previsto":"Modifica pagamento previsto",wide:true,
+    ok:isNew?"Aggiungi al piano":"Salva",body:b,
+    danger:isNew?null:"Elimina",
+    onDelete:async(body)=>{
+      const all=$("#q_all",body)&&$("#q_all",body).checked;
+      const targets=all&&it.recId
+        ?(S.plan||[]).filter(x=>x.recId===it.recId&&(N(x.recIdx)||0)>=(N(it.recIdx)||0))
+        :[it];
+      for(const t of targets) await del(ppath("plan/"+t.id));
+      await loadProjectData(S.pid); render();
+      toast(targets.length>1?(targets.length+" rate eliminate"):"Eliminato");
+      return true;
+    },
+    onOk:async(body)=>{
+      const f=readForm(body);
+      if(!f.amount){toast("Inserisci l'importo",true);return false}
+      const mk=$("#q_mk",body)&&$("#q_mk",body).checked;
+      const stato=mk?"pagato":$("#q_st",body).value;
+      const draw=pd($("#q_date",body).value)||new Date();
+      const d0=monday(draw);
+      const base=Object.assign({},f,{date:iso(d0),status:stato});
+
+      /* nuova serie mensile */
+      const recOn=isNew&&$("#q_rec",body)&&$("#q_rec",body).checked;
+      if(recOn){
+        const n=clamp(N($("#q_recn",body).value)||12,2,120);
+        const rid=uid("rec");
+        for(let k=0;k<n;k++){
+          const row=Object.assign({},base,{date:iso(payWeek(addMonthsKeep(draw,k))),
+            recId:rid,recIdx:k+1,recTot:n,
+            status:k===0?stato:(stato==="pagato"?"confermato":stato)});
+          if(!await put(ppath("plan/"+uid("q")),row)) return false;
+        }
+        await loadProjectData(S.pid); render();
+        toast(n+" rate mensili pianificate · "+eur0(n*f.amount)+" in totale");
+        return true;
+      }
+
+      /* modifica estesa a tutta la serie */
+      const all=!isNew&&$("#q_all",body)&&$("#q_all",body).checked&&it.recId;
+      if(all){
+        const targets=(S.plan||[]).filter(x=>x.recId===it.recId&&(N(x.recIdx)||0)>=(N(it.recIdx)||0));
+        for(const t of targets){
+          const upd=Object.assign({},f,{status:stato,date:t.id===it.id?base.date:(t.date||base.date)});
+          if(!await patch(ppath("plan/"+t.id),upd)) return false;
+        }
+        await loadProjectData(S.pid); render();
+        toast(targets.length+" rate aggiornate");
+        return true;
+      }
+
+      const ok=isNew?await put(ppath("plan/"+uid("q")),base):await patch(ppath("plan/"+it.id),base);
+      if(!ok) return false;
+      if(mk){
+        await put(ppath("fin/"+uid("f")),{kind:"payment",supplier:base.supplier,desc:base.label||"Pagamento da piano",
+          amount:base.amount,date:iso(new Date()),method:"bonifico",paidBy:base.paidBy,cat:base.cat,by:S.me.id,noVat:!!base.noVat});
+      }
+      await loadProjectData(S.pid); render(); toast(isNew?"Pagamento pianificato":"Piano aggiornato"); return true;
+    }});
+}
+
+function payRequest(f,p){
+  const parts=(p.partners||[]).map(x=>[x.id,x.name]);
+  const b=el("div");
+  b.innerHTML='<p class="muted" style="font-size:13px;margin-bottom:14px">Registri il pagamento di <b>'+esc(f.supplier||"—")+
+    '</b> per <b>'+eur0(f.amount)+'</b>. La richiesta verrà segnata come pagata.</p>'+
+    '<div class="f2">'+fld("y_amt","Importo pagato €","number",f.amount,'step="0.01"')+
+      fld("y_date","Data pagamento","date",iso(new Date()))+'</div>'+
+    '<div class="f2">'+sel("y_meth","Modalità","bonifico",METHODS)+
+      (parts.length?sel("y_by","Pagato da (socio)",(parts[0]||[""])[0],[["","—"]].concat(parts))
+                   :'<div class="field"><label>Pagato da</label><input class="inp" disabled value="Nessun socio"></div>')+'</div>';
+  modal({title:"Registra pagamento",body:b,ok:"Registra pagamento",onOk:async(body)=>{
+    const data={kind:"payment",supplier:f.supplier,desc:f.desc||("Saldo richiesta "+fmtD(f.date)),
+      amount:N($("#y_amt",body).value),date:$("#y_date",body).value||iso(new Date()),
+      method:$("#y_meth",body).value,paidBy:$("#y_by",body)?$("#y_by",body).value:"",cat:f.cat||"lavori",
+      reqId:f.id,by:S.me.id,noVat:!!f.noVat};
+    if(!await put(ppath("fin/"+uid("f")),data)) return false;
+    await patch(ppath("fin/"+f.id),{status:"paid"});
+    await loadProjectData(S.pid); render(); toast("Pagamento registrato"); return true;
+  }});
+}
+
+const APP_VER="v17 · 15.10.2026";
 
 /* ========================= INIT ========================= */
 const th=lsGet("repjt.theme"); document.documentElement.setAttribute("data-theme",th||"dark");
