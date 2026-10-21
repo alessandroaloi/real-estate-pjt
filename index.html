@@ -9526,7 +9526,406 @@ function viewFinance(sc,p){
     const f=S.fin.find(x=>x.id===b.dataset.mk); if(f) payRequest(f,p)}));
 }
 
-const APP_VER="v21 · 21.10.2026";
+
+/* ======================================================================
+   v22 — un pagamento eredita il "non soggetta a IVA" dalla voce di piano
+          (o dalla richiesta) a cui è collegato: le registrazioni fatte
+          prima che il flag esistesse restano corrette senza rifarle
+   ====================================================================== */
+function finNoVat(f){
+  if(!f) return false;
+  if(f.noVat) return true;
+  if(f.planId){ const it=(S.plan||[]).find(x=>x.id===f.planId); if(it&&it.noVat) return true }
+  if(f.reqId){ const r=(S.fin||[]).find(x=>x.id===f.reqId); if(r&&r.noVat) return true }
+  return false;
+}
+function vatKf(f){ return finNoVat(f)?1:vatK() }
+
+function ledgerBalances(p,fin,ledger){
+  const partners=(p.partners||[]);
+  const map={}; partners.forEach(x=>map[x.id]={id:x.id,name:x.name,quota:N(x.quota),paid:0,manual:0});
+  (fin||[]).filter(f=>f.kind==="payment").forEach(f=>{
+    const kf=vatKf(f);
+    paidSplit(f).forEach(x=>{ if(map[x.id]) map[x.id].paid+=N(x.amount)*kf });
+  });
+  (ledger||[]).forEach(l=>{
+    if(l.from&&map[l.from]) map[l.from].manual+=N(l.amount);
+    if(l.to&&map[l.to]) map[l.to].manual-=N(l.amount);
+  });
+  const totalPaid=Object.values(map).reduce((s,x)=>s+x.paid,0);
+  const qSum=Object.values(map).reduce((s,x)=>s+x.quota,0)||100;
+  Object.values(map).forEach(x=>{ x.due=totalPaid*(x.quota/qSum); x.balance=x.paid-x.due+x.manual });
+  return {rows:Object.values(map),totalPaid:totalPaid,quotaSum:qSum};
+}
+
+function socioMovements(p,sid){
+  const parts=(p.partners||[]);
+  const qSum=parts.reduce((s,x)=>s+N(x.quota),0)||100;
+  const me=parts.find(x=>x.id===sid); if(!me) return [];
+  const q=N(me.quota)/qSum;
+  const out=[];
+  (S.fin||[]).filter(f=>f.kind==="payment").forEach(f=>{
+    const kf=vatKf(f);
+    const mine=paidByOf(f,sid)*kf;
+    const due=N(f.amount)*kf*q;
+    if(Math.abs(mine)<0.005&&Math.abs(due)<0.005) return;
+    out.push({date:f.date||"",kind:"pay",title:(f.supplier||f.desc||"Pagamento"),desc:f.desc||"",
+      total:N(f.amount)*kf,mine:mine,due:due,eff:mine-due,noVat:finNoVat(f),
+      payers:paidSplit(f).map(x=>({id:x.id,amount:N(x.amount)*kf}))});
+  });
+  (S.ledger||[]).forEach(l=>{
+    const isSettle=l.kind==="settle";
+    if(l.from===sid) out.push({date:l.date||"",kind:isSettle?"settle-out":"led-out",
+      title:isSettle?("Rimborso a "+nameOf(p,l.to)):("Anticipo per "+nameOf(p,l.to)),
+      desc:l.desc||"",total:N(l.amount),mine:N(l.amount),due:0,eff:N(l.amount)});
+    else if(l.to===sid) out.push({date:l.date||"",kind:isSettle?"settle-in":"led-in",
+      title:isSettle?("Rimborso da "+nameOf(p,l.from)):("Anticipo ricevuto da "+nameOf(p,l.from)),
+      desc:l.desc||"",total:N(l.amount),mine:0,due:N(l.amount),eff:-N(l.amount)});
+  });
+  return out.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+}
+
+function payerChips(f,p){
+  const sp=paidSplit(f);
+  if(!sp.length) return '<span class="dim">—</span>';
+  const parts=(p&&p.partners)||[];
+  if(sp.length>2) return '<span class="chip acc">'+sp.length+' soci</span>';
+  return sp.map(x=>{ const w=parts.find(z=>z.id===x.id);
+    return '<span class="chip acc" style="margin-right:3px">'+esc(w?w.name:"—")+
+      (sp.length>1?' <span style="opacity:.75">'+eur0(N(x.amount)*vatKf(f))+'</span>':'')+'</span>' }).join("");
+}
+
+function viewFinance(sc,p){
+  const m=metrics(p,S.fin,S.tasks);
+  const lb=ledgerBalances(p,S.fin,S.ledger);
+  const reqs=S.fin.filter(f=>f.kind==="request");
+  const pays=S.fin.filter(f=>f.kind==="payment");
+  const planOut=outSum(S.plan), planIn=inSum(S.plan), planNet=planOut-planIn;
+  const planTot=planOut;
+  const planPaid=outSum(S.plan.filter(x=>x.status==="pagato"));
+  const paidV=pays.reduce((s,f)=>s+N(f.amount)*vatKf(f),0);
+  const worksV=N(m.works)*vatK();
+  let kpis="";
+  if(canF("f_budget")) kpis+=kpi("Budget lavori",VE(m.works),IC.scale,"da scheda progetto","");
+  if(canF("f_pay")) kpis+=kpi("Pagato",eur0(paidV),IC.euro,pct(m.spentPct,0)+" del budget",m.spentPct>100?"bad":"acc");
+  if(canF("f_req")) kpis+=kpi("Richieste aperte",VE(m.reqOpen),IC.doc,reqs.filter(r=>r.status!=="paid").length+" documenti","info");
+  if(canF("f_plan")) kpis+=kpi("Piano pagamenti",eur0(planTot),IC.cal,planIn?("netto "+eurSigned(planNet)+" dopo le entrate"):(eur0(planTot-planPaid)+" ancora da pagare"),"warn");
+  if(canF("f_budget")) kpis+=kpi("Residuo budget",eur0(worksV-paidV),IC.wallet,(m.works-m.paid)<0?"budget superato":"disponibile",(m.works-m.paid)<0?"bad":"good");
+  const page=el("div","page");
+  page.innerHTML='<div class="page-head"><div><h1>Finance</h1>'+
+    '<div class="sub">Richieste fornitori, pagamenti, piano di cassa e partite tra soci</div></div><div class="sp"></div>'+
+    (canWrite()?'<div class="row">'+
+      (canF("f_plan")?'<button class="btn btn-sm" id="f_pl">'+IC.plus+'Pagamento previsto</button>':'')+
+      (canF("f_req")?'<button class="btn btn-sm" id="f_req">'+IC.plus+'Richiesta</button>':'')+
+      (canF("f_pay")?'<button class="btn btn-pri btn-sm" id="f_pay">'+IC.plus+'Pagamento</button>':'')+
+      '</div>':'')+'</div>'+
+    '<div class="grid g4" style="margin-bottom:12px">'+kpis+'</div>'+
+    (canF("f_plan")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Timeline pagamenti</h3>'+
+      '<div class="sp"></div><span class="chip acc">'+eur0(planTot)+'</span>'+
+      (planIn?'<span class="chip good">+ '+eur0(planIn)+'</span>':'')+
+      '<button class="btn btn-sm" id="pl_today">Oggi</button>'+
+      '<button class="btn btn-sm" id="pl_xls">'+IC.dl+'Excel</button></div>'+
+      '<div id="pay-host"></div></div>'+
+      '<div class="grid g2" style="margin-bottom:12px"><div class="card"><div class="card-h"><h3>Totali piano di cassa</h3></div>'+
+      '<div class="card-p" id="pl_tot"></div></div>'+
+      '<div class="card"><div class="card-h"><h3>Ripartizione per quote</h3><div class="sp"></div>'+
+      (canWrite()?'<button class="btn btn-sm" id="f_soci2">Soci e quote</button>':'')+'</div>'+
+      '<div class="card-p" id="pl_split"></div></div></div>':'')+
+    (canF("f_req")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Richieste di pagamento</h3><div class="sp"></div>'+
+      '<span class="chip">'+reqs.length+'</span></div><div class="tbl-wrap"><table class="tbl resp"><thead><tr>'+
+      '<th>Fornitore</th><th>Descrizione</th><th>Data</th><th>Scadenza</th><th class="r">Importo</th><th>Stato</th><th></th>'+
+      '</tr></thead><tbody id="rq"></tbody></table></div></div>':'')+
+    (canF("f_pay")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Pagamenti effettuati</h3><div class="sp"></div>'+
+      '<span class="chip">'+pays.length+'</span></div><div class="tbl-wrap"><table class="tbl resp"><thead><tr>'+
+      '<th>Data</th><th>Fornitore</th><th>Descrizione</th><th>Pagato da</th><th>Modalità</th><th class="r">Importo</th><th></th>'+
+      '</tr></thead><tbody id="pb"></tbody></table></div></div>':'')+
+    (canF("f_ledger")||canF("f_quotas")?'<div class="grid g21">'+
+      (canF("f_ledger")?'<div class="card"><div class="card-h"><h3>Conti tra soci</h3><div class="sp"></div>'+
+        (canWrite()?'<button class="btn btn-sm" id="f_soci">Soci e quote</button>'+
+        '<button class="btn btn-sm" id="f_le">'+IC.plus+'Partita</button>':'')+'</div>'+
+        '<div class="tbl-wrap"><table class="tbl resp"><thead><tr><th>Data</th><th>Ha pagato</th><th>Per conto di</th>'+
+        '<th>Descrizione</th><th class="r">Importo</th><th></th></tr></thead><tbody id="lg"></tbody></table></div></div>':'')+
+      (canF("f_quotas")?'<div class="card"><div class="card-h"><h3>Saldi</h3><div class="sp"></div>'+
+        '<button class="btn btn-sm" id="f_who">Chi deve a chi</button></div><div class="card-p" id="bal"></div></div>':'')+
+    '</div>':'');
+  sc.innerHTML=""; sc.appendChild(page);
+
+  if(canF("f_plan")){
+    drawPayGantt($("#pay-host",page),p);
+    const tp=$("#pl_today",page); if(tp) tp.addEventListener("click",()=>scrollToToday(page,ganttRange(S.tasks,p),"pay"));
+    const xb=$("#pl_xls",page); if(xb) xb.addEventListener("click",async()=>{
+      xb.disabled=true; const o=xb.innerHTML; xb.textContent="Genero…";
+      await exportPayXlsx(p); xb.disabled=false; xb.innerHTML=o; });
+    const residuo=planTot-planPaid;
+    $("#pl_tot",page).innerHTML=
+      '<div class="split"><span class="l">Uscite pianificate ('+S.plan.filter(x=>!isIn(x)).length+')</span><span class="v">'+eur0(planOut)+'</span></div>'+
+      (planIn?'<div class="split"><span class="l">Entrate previste ('+S.plan.filter(isIn).length+')</span>'+
+        '<span class="v" style="color:var(--good)">+ '+eur0(planIn)+'</span></div>'+
+        '<div class="split tot"><span class="l">Fabbisogno netto di cassa</span><span class="v">'+eurSigned(planNet)+'</span></div>':'')+
+      '<div class="split"><span class="l">Già pagati</span><span class="v" style="color:var(--good)">'+eur0(planPaid)+'</span></div>'+
+      '<div class="split"><span class="l">Ancora da pagare</span><span class="v" style="color:var(--warn)">'+eur0(residuo)+'</span></div>'+
+      (canF("f_budget")?'<div class="split"><span class="l">Budget lavori</span><span class="v">'+VE(m.works)+'</span></div>'+
+       '<div class="split tot"><span class="l">Scostamento piano / budget</span><span class="v" style="color:'+
+       ((planTot-m.works)>0?"var(--bad)":"var(--good)")+'">'+eur0(planTot-worksV)+'</span></div>':'')+
+      '<div style="margin-top:12px"><div class="row" style="justify-content:space-between;margin-bottom:6px">'+
+      '<span class="eyebrow">Avanzamento piano</span><span class="mono" style="font-size:11.5px;font-weight:700">'+
+      pct(planTot?planPaid/planTot*100:0,0)+'</span></div><div class="bar good" style="height:9px"><i style="width:'+
+      clamp(planTot?planPaid/planTot*100:0,0,100)+'%"></i></div></div>';
+    const parts=(p.partners||[]);
+    const qs=parts.reduce((s,x)=>s+N(x.quota),0)||100;
+    $("#pl_split",page).innerHTML= parts.length?
+      '<p class="dim" style="font-size:11.5px;margin-bottom:10px">Quanto tocca a ciascun socio sul fabbisogno netto di cassa (uscite meno entrate), in base alle quote.</p>'+
+      '<table class="tbl" style="font-size:12.5px"><thead><tr><th style="padding-left:0">Socio</th><th class="r">Quota</th>'+
+      '<th class="r">Su piano</th><th class="r" style="padding-right:0">Già versato</th></tr></thead><tbody>'+
+      parts.map(x=>{
+        const versato=pays.reduce((s,f)=>s+paidByOf(f,x.id)*vatKf(f),0);
+        const dovuto=planNet*(N(x.quota)/qs);
+        return '<tr><td style="padding-left:0"><b>'+esc(x.name)+'</b></td><td class="r">'+pct(N(x.quota),1)+'</td>'+
+          '<td class="r" style="font-weight:700">'+eurSigned(dovuto)+'</td>'+
+          '<td class="r" style="padding-right:0;color:'+(versato>=dovuto?"var(--good)":"var(--ink-2)")+'">'+eur0(versato)+'</td></tr>'}).join("")+
+      '<tr><td style="padding-left:0;font-weight:700">Totale</td><td class="r">'+pct(qs,1)+'</td>'+
+      '<td class="r" style="font-weight:800">'+eurSigned(planNet)+'</td><td class="r" style="padding-right:0;font-weight:700">'+eur0(paidV)+'</td></tr>'+
+      '</tbody></table>'
+      :'<div class="dim" style="font-size:12.5px">Nessun socio configurato: aggiungili dalla scheda progetto o dal pulsante «Soci e quote».</div>';
+    const s2=$("#f_soci2",page); if(s2) s2.addEventListener("click",()=>partnersModal(p));
+  }
+
+  const rq=$("#rq",page);
+  if(rq){
+    if(!reqs.length) rq.innerHTML='<tr><td colspan="7"><div class="empty">Nessuna richiesta registrata.</div></td></tr>';
+    reqs.forEach(f=>{
+      const overdue=f.status!=="paid"&&f.due&&f.due<iso(new Date());
+      const tr=el("tr");
+      tr.innerHTML='<td class="hd"><b>'+esc(f.supplier||"—")+'</b></td><td data-l="Descrizione" class="muted">'+esc(f.desc||"")+'</td>'+
+        '<td data-l="Data" class="mono" style="font-size:12px">'+fmtD(f.date)+'</td>'+
+        '<td data-l="Scadenza" class="mono" style="font-size:12px'+(overdue?';color:var(--bad);font-weight:700':'')+'">'+(f.due?fmtD(f.due):"—")+'</td>'+
+        '<td data-l="Importo" class="r" style="font-weight:700">'+eur0(N(f.amount)*vatKf(f))+(finNoVat(f)?' <span class="novat">no iva</span>':'')+'</td>'+
+        '<td data-l="Stato"><span class="chip '+fstatChip(f.status)+'">'+esc(fstatLabel(f.status))+'</span></td>'+
+        '<td class="r act-cell"><span class="act row" style="justify-content:flex-end;gap:4px">'+
+        (canWrite()&&f.status!=="paid"?'<button class="btn btn-xs" data-mk="'+f.id+'">Paga</button>':'')+
+        (canWrite()?'<button class="btn btn-xs" data-fe="'+f.id+'">'+IC.pen+'</button>'+
+        '<button class="btn btn-xs" data-fd="'+f.id+'">'+IC.trash+'</button>':'')+'</span></td>';
+      rq.appendChild(tr);
+    });
+  }
+  const pb=$("#pb",page);
+  if(pb){
+    if(!pays.length) pb.innerHTML='<tr><td colspan="7"><div class="empty">Nessun pagamento registrato.</div></td></tr>';
+    pays.forEach(f=>{
+      const tr=el("tr");
+      tr.innerHTML='<td class="hd"><b>'+fmtD(f.date)+'</b> · '+esc(f.supplier||"—")+
+          (f.planId?' <span class="chip info">da piano</span>':'')+'</td>'+
+        '<td data-l="Descrizione" class="muted">'+esc(f.desc||"")+'</td>'+
+        '<td data-l="Pagato da">'+payerChips(f,p)+'</td>'+
+        '<td data-l="Modalità" class="muted" style="font-size:12px">'+esc((METHODS.find(x=>x[0]===f.method)||["","—"])[1])+'</td>'+
+        '<td data-l="Importo" class="r" style="font-weight:700">'+eur0(N(f.amount)*vatKf(f))+(finNoVat(f)?' <span class="novat">no iva</span>':'')+'</td>'+
+        '<td class="r act-cell"><span class="act row" style="justify-content:flex-end;gap:4px">'+
+        (canWrite()?'<button class="btn btn-xs" data-fe="'+f.id+'">'+IC.pen+'</button>'+
+        '<button class="btn btn-xs" data-fd="'+f.id+'">'+IC.trash+'</button>':'')+'</span></td>';
+      pb.appendChild(tr);
+    });
+  }
+  const lg=$("#lg",page);
+  if(lg){
+    if(!S.ledger.length) lg.innerHTML='<tr><td colspan="6"><div class="empty">Nessuna partita tra soci.<br>'+
+      '<span style="font-size:12px">Esempio: «Aloi ha pagato 1.000 € per conto di Pasta».</span></div></td></tr>';
+    S.ledger.forEach(l=>{
+      const a=(p.partners||[]).find(x=>x.id===l.from), bb=(p.partners||[]).find(x=>x.id===l.to);
+      const tr=el("tr");
+      tr.innerHTML='<td class="hd"><b>'+esc(a?a.name:"—")+'</b> → '+esc(bb?bb.name:"—")+
+          (l.kind==="settle"?' <span class="chip good">rimborso</span>':'')+'</td>'+
+        '<td data-l="Data" class="mono" style="font-size:12px">'+fmtD(l.date)+'</td>'+
+        '<td data-l="Descrizione" class="muted">'+esc(l.desc||"")+'</td>'+
+        '<td data-l="Importo" class="r" style="font-weight:700">'+eur0(l.amount)+'</td>'+
+        '<td class="r act-cell"><span class="act">'+(canWrite()?'<button class="btn btn-xs btn-danger" data-ld="'+l.id+'">'+IC.trash+'</button>':'')+'</span></td>';
+      lg.appendChild(tr);
+    });
+  }
+  const bal=$("#bal",page);
+  if(bal){
+    if(!lb.rows.length){ bal.innerHTML='<div class="dim" style="font-size:12.5px">Configura i soci per vedere i saldi.</div>' }
+    else{
+      bal.innerHTML='<div class="split"><span class="l">Totale versato</span><span class="v">'+eur0(lb.totalPaid)+'</span></div>'+
+        lb.rows.map(r=>{
+          const tone=r.balance>1?"good":r.balance<-1?"bad":"";
+          return '<div class="balrow" data-soc="'+r.id+'" style="border-bottom:1px solid var(--line-2)" '+
+            'title="Apri lo spaccato del conto di '+esc(r.name)+'">'+
+          '<div class="row" style="justify-content:space-between;margin-bottom:6px">'+
+            '<span style="font-size:13px;font-weight:700">'+esc(r.name)+' <span class="dim mono" style="font-size:11px;font-weight:500">quota '+pct(r.quota,0)+'</span></span>'+
+            '<span class="chip '+tone+'">'+(r.balance>1?"a credito":r.balance<-1?"a debito":"in pari")+' '+eur0(Math.abs(r.balance))+'</span></div>'+
+          '<table class="mini-tbl" style="width:100%"><tr><td class="dim">Versato</td><td class="r">'+eur0(r.paid)+'</td></tr>'+
+          '<tr><td class="dim">Dovuto su quota</td><td class="r">'+eur0(r.due)+'</td></tr>'+
+          (Math.abs(r.manual)>0.5?'<tr><td class="dim">Partite dirette</td><td class="r">'+eur0(r.manual)+'</td></tr>':'')+
+          '</table></div>'}).join("")+
+        '<p class="dim" style="font-size:11.5px;margin-top:10px">Tocca un socio per vedere lo spaccato dei movimenti.</p>';
+      $$("[data-soc]",bal).forEach(x=>x.addEventListener("click",()=>socioModal(p,x.dataset.soc)));
+    }
+  }
+  const bpl=$("#f_pl",page); if(bpl) bpl.addEventListener("click",()=>planModal(null));
+  const br=$("#f_req",page); if(br) br.addEventListener("click",()=>finModal(null,"request"));
+  const bp=$("#f_pay",page); if(bp) bp.addEventListener("click",()=>finModal(null,"payment"));
+  const bs=$("#f_soci",page); if(bs) bs.addEventListener("click",()=>partnersModal(p));
+  const bw=$("#f_who",page); if(bw) bw.addEventListener("click",()=>settlementModal(p));
+  const bl=$("#f_le",page); if(bl) bl.addEventListener("click",()=>ledgerModal(p));
+  $$("[data-fe]",page).forEach(b=>b.addEventListener("click",()=>{const f=S.fin.find(x=>x.id===b.dataset.fe);if(f)finModal(f,f.kind)}));
+  $$("[data-fd]",page).forEach(b=>b.addEventListener("click",()=>{
+    const f=S.fin.find(x=>x.id===b.dataset.fd); if(!f)return;
+    confirmBox("Elimina voce","Eliminare «"+(f.supplier||f.desc||"voce")+"» ("+VE(f.amount)+")?","Elimina",async()=>{
+      await del(ppath("fin/"+f.id)); await loadProjectData(S.pid); render(); toast("Voce eliminata")})}));
+  $$("[data-ld]",page).forEach(b=>b.addEventListener("click",async()=>{
+    await del(ppath("ledger/"+b.dataset.ld)); await loadProjectData(S.pid); render(); toast("Partita eliminata")}));
+  $$("[data-mk]",page).forEach(b=>b.addEventListener("click",()=>{
+    const f=S.fin.find(x=>x.id===b.dataset.mk); if(f) payRequest(f,p)}));
+}
+
+function finModal(f,kind){
+  const p=P(); const isNew=!f; const isReq=kind==="request";
+  const parts=(p.partners||[]);
+  const qSum=parts.reduce((s,x)=>s+N(x.quota),0)||100;
+  const openPlan=S.plan.filter(x=>x.status!=="pagato"||(f&&f.planId===x.id));
+  const split={}; let touched=false;
+  const seed=amount=>{
+    parts.forEach(x=>{ split[x.id]={on:true,amount:N(amount)*(N(x.quota)/qSum)} });
+  };
+  if(!isNew){
+    const sp=paidSplit(f);
+    parts.forEach(x=>{ split[x.id]={on:false,amount:0} });
+    if(sp.length){ sp.forEach(x=>{ if(split[x.id]) split[x.id]={on:true,amount:x.amount} }); touched=true }
+    else seed(f.amount);
+  } else seed(0);
+
+  const b=el("div");
+  b.innerHTML=
+    (!isReq&&openPlan.length?'<div class="field"><label for="x_plan">Collega a un pagamento previsto</label>'+
+      '<select class="inp" id="x_plan"><option value="">— nessun collegamento —</option>'+
+      openPlan.map(x=>'<option value="'+x.id+'"'+((f&&f.planId===x.id)?" selected":"")+'>'+
+        esc((x.label||"Pagamento")+(x.supplier?" · "+x.supplier:"")+" · "+eurN(x.amount)+" · sett. "+fmtD(x.date))+
+        '</option>').join("")+'</select>'+
+      '<div class="dim" style="font-size:11.5px;margin-top:5px">Selezionandolo, importo e fornitore si compilano da soli.</div></div>':'')+
+    '<div class="f2">'+fld("x_sup","Fornitore / impresa","text",f?f.supplier:"")+
+      fld("x_amt","Importo €","number",f?f.amount:"",'step="0.01"')+'</div>'+
+    fld("x_desc","Descrizione","text",f?f.desc:"")+
+    '<div class="f2">'+fld("x_date",isReq?"Data richiesta":"Data pagamento","date",f?f.date:iso(new Date()))+
+      (isReq?fld("x_due","Scadenza","date",f?f.due:"")
+            :sel("x_meth","Modalità",f?f.method:"bonifico",METHODS))+'</div>'+
+    '<div class="f2">'+
+      (isReq?sel("x_st","Stato",f?f.status:"draft",FSTAT):'<div></div>')+
+      sel("x_cat","Voce di costo",f?f.cat:"lavori",[["lavori","Lavori / cantiere"],["progetto","Progetto e permessi"],
+        ["acquisto","Acquisto immobile"],["agenzia","Agenzia / commerciale"],["finanziari","Oneri finanziari"],["altro","Altro"]])+
+    '</div>'+
+    (!isReq?'<div class="pgrp"><div class="h"><span class="eyebrow">Chi ha pagato</span>'+
+      '<button type="button" class="mini-link" id="sp_q">per quota</button>'+
+      '<button type="button" class="mini-link" id="sp_e">parti uguali</button>'+
+      '<button type="button" class="mini-link" id="sp_n">deseleziona</button></div>'+
+      '<div id="spl"></div>'+
+      '<div class="row" style="justify-content:space-between;margin-top:9px;padding-top:9px;border-top:1px solid var(--line-2)">'+
+      '<span class="eyebrow">Ripartito</span><span id="spsum" class="mono" style="font-size:12.5px;font-weight:700"></span></div>'+
+      '</div>':'')+
+    fld("x_note","Note","textarea",f?f.note:"")+
+    '<label class="perm" style="margin-top:4px"><input type="checkbox" id="x_novat" data-nocase'+(finNoVat(f)?" checked":"")+'>'+
+      '<span class="t">Voce non soggetta a IVA'+
+      '<span class="dim" style="display:block;font-weight:500">Oneri di urbanizzazione, bolli, imposte: resta a questo importo anche con lo switch «+ IVA» attivo.</span></span></label>'+
+    (!isReq&&openPlan.length?'<label class="perm" id="x_mkw" style="margin-top:4px"><input type="checkbox" id="x_mk" checked>'+
+      '<span class="t">Segna il pagamento previsto collegato come pagato</span></label>':'');
+
+  const amtEl=$("#x_amt",b);
+  const drawSplit=()=>{
+    const host=$("#spl",b); if(!host) return;
+    host.innerHTML="";
+    if(!parts.length){ host.innerHTML='<div class="dim" style="font-size:12px">Nessun socio configurato: aggiungili dalla scheda progetto.</div>'; return }
+    parts.forEach(x=>{
+      const st=split[x.id]||(split[x.id]={on:false,amount:0});
+      const row=el("div","srow");
+      row.innerHTML='<label class="perm" style="min-width:0"><input type="checkbox" data-pt="'+x.id+'"'+(st.on?" checked":"")+'>'+
+        '<span class="t" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.name)+
+        ' <span class="dim" style="font-weight:500">'+pct(N(x.quota),N(x.quota)%1?2:0)+'</span></span></label>'+
+        '<input class="inp num" type="number" step="0.01" value="'+(st.on?Math.round(st.amount*100)/100:"")+'"'+(st.on?"":" disabled")+'>';
+      const cb=$("input[data-pt]",row), am=$$("input",row)[1];
+      cb.addEventListener("change",()=>{
+        st.on=cb.checked; am.disabled=!cb.checked;
+        if(cb.checked&&!N(am.value)) rebalance(); else { st.amount=N(am.value); sum() }
+        drawSplit();
+      });
+      am.addEventListener("input",()=>{ touched=true; st.amount=N(am.value); sum() });
+      host.appendChild(row);
+    });
+    sum();
+  };
+  const sum=()=>{
+    const el2=$("#spsum",b); if(!el2) return;
+    let t=0; parts.forEach(x=>{ if(split[x.id]&&split[x.id].on) t+=N(split[x.id].amount) });
+    const tot=N(amtEl?amtEl.value:0);
+    const d=t-tot;
+    el2.innerHTML=eurN(t)+' di '+eurN(tot)+
+      (Math.abs(d)>0.5?' <span style="color:'+(d>0?"var(--bad)":"var(--warn)")+'">('+(d>0?"+":"")+eurN(d)+')</span>'
+                      :' <span style="color:var(--good)">✓</span>');
+  };
+  const rebalance=(mode)=>{
+    const tot=N(amtEl?amtEl.value:0);
+    const on=parts.filter(x=>split[x.id]&&split[x.id].on);
+    if(!on.length) return;
+    if(mode==="equal"){ on.forEach(x=>split[x.id].amount=tot/on.length) }
+    else { const qs=on.reduce((s,x)=>s+N(x.quota),0)||on.length;
+      on.forEach(x=>split[x.id].amount=tot*(N(x.quota)/qs)) }
+    touched=false;
+  };
+  if(!isReq){
+    drawSplit();
+    const q=$("#sp_q",b); if(q) q.addEventListener("click",()=>{parts.forEach(x=>{if(!split[x.id])split[x.id]={on:true,amount:0};split[x.id].on=true});rebalance("quota");drawSplit()});
+    const e2=$("#sp_e",b); if(e2) e2.addEventListener("click",()=>{parts.forEach(x=>{if(!split[x.id])split[x.id]={on:true,amount:0};split[x.id].on=true});rebalance("equal");drawSplit()});
+    const n2=$("#sp_n",b); if(n2) n2.addEventListener("click",()=>{parts.forEach(x=>{if(split[x.id]){split[x.id].on=false;split[x.id].amount=0}});drawSplit()});
+    if(amtEl) amtEl.addEventListener("input",()=>{ if(!touched){rebalance("quota");drawSplit()} else sum() });
+    const ps=$("#x_plan",b);
+    if(ps) ps.addEventListener("change",()=>{
+      const it=S.plan.find(x=>x.id===ps.value);
+      if(!it) return;
+      $("#x_sup",b).value=(it.supplier||"").toUpperCase();
+      $("#x_desc",b).value=(it.label||"").toUpperCase();
+      amtEl.value=N(it.amount);
+      $("#x_cat",b).value=it.cat||"lavori";
+      const nv=$("#x_novat",b); if(nv) nv.checked=!!it.noVat;
+      if(it.paidBy&&split[it.paidBy]){ parts.forEach(x=>{split[x.id].on=false;split[x.id].amount=0});
+        split[it.paidBy]={on:true,amount:N(it.amount)}; touched=true }
+      else { parts.forEach(x=>{if(split[x.id])split[x.id].on=true}); rebalance("quota") }
+      drawSplit();
+      toast("Dati compilati dal piano pagamenti");
+    });
+  }
+  modal({title:(isNew?"Nuovo ":"Modifica ")+(isReq?"richiesta di pagamento":"pagamento"),wide:true,body:b,
+    ok:isNew?"Registra":"Salva",
+    danger:isNew?null:"Elimina",
+    onDelete:async()=>{ await del(ppath("fin/"+f.id)); await loadProjectData(S.pid); render(); toast("Eliminato"); return true },
+    onOk:async(body)=>{
+      const amt=N($("#x_amt",body).value);
+      if(!amt){toast("Inserisci l'importo",true);return false}
+      const data={kind:kind,supplier:$("#x_sup",body).value.trim(),desc:$("#x_desc",body).value.trim(),
+        amount:amt,date:$("#x_date",body).value||iso(new Date()),cat:$("#x_cat",body).value,
+        note:$("#x_note",body).value.trim(),by:S.me.id,
+        noVat:!!($("#x_novat",body)&&$("#x_novat",body).checked)};
+      if(isReq){ data.due=$("#x_due",body).value; data.status=$("#x_st",body).value }
+      else{
+        data.method=$("#x_meth",body).value;
+        const planEl=$("#x_plan",body);
+        data.planId=planEl?planEl.value:"";
+        let list=parts.filter(x=>split[x.id]&&split[x.id].on)
+          .map(x=>({id:x.id,amount:Math.round(N(split[x.id].amount)*100)/100}));
+        if(list.length){
+          const t=list.reduce((s,x)=>s+x.amount,0);
+          const d=Math.round((amt-t)*100)/100;
+          if(Math.abs(d)>0.005) list[0].amount=Math.round((list[0].amount+d)*100)/100;
+        }
+        data.paidByList=list;
+        data.paidBy=list.length===1?list[0].id:"";
+      }
+      const ok=isNew?await put(ppath("fin/"+uid("f")),data):await patch(ppath("fin/"+f.id),data);
+      if(!ok) return false;
+      if(!isReq&&data.planId&&$("#x_mk",body)&&$("#x_mk",body).checked)
+        await patch(ppath("plan/"+data.planId),{status:"pagato"});
+      await loadProjectData(S.pid); render(); toast(isNew?"Registrato":"Aggiornato"); return true;
+    }});
+}
+
+const APP_VER="v22 · 21.10.2026";
 
 /* ========================= INIT ========================= */
 const th=lsGet("repjt.theme"); document.documentElement.setAttribute("data-theme",th||"dark");
