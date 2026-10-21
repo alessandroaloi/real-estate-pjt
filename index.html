@@ -847,6 +847,21 @@ input.inp[type="text"]:not([data-nocase]){text-transform:uppercase}
 .novat{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;
   background:var(--info-soft);color:var(--info);font-size:8.5px;font-weight:800;
   letter-spacing:.08em;text-transform:uppercase;font-family:var(--ff);vertical-align:1px;white-space:nowrap}
+
+/* ====================================================================
+   v18 — entrate di cassa
+   ==================================================================== */
+.inbadge{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;
+  background:var(--good-soft);color:var(--good);font-size:8.5px;font-weight:800;
+  letter-spacing:.08em;text-transform:uppercase;font-family:var(--ff);vertical-align:1px;white-space:nowrap}
+.pay-bar.in::after{border-style:dashed;border-color:rgba(255,255,255,.5)}
+.wk-tot>div.has.neg>i{background-image:linear-gradient(180deg,var(--good),color-mix(in srgb,var(--good) 72%,transparent))}
+.mon-tot>div.has.neg{background:var(--good-soft)}
+.mon-tot>div.has.neg>b{color:var(--good)}
+.seg2>button.on.inflow{background:var(--good);box-shadow:0 2px 8px -3px var(--good)}
+
+.g-li .tags{flex:none;display:flex;gap:4px;align-items:center;max-width:46%;overflow:hidden}
+.g-li .tags>span{margin-left:0}
 </style>
 <div id="root"><div class="loading"><div class="spin"></div>Caricamento…</div></div>
 <div id="toasts"></div>
@@ -8285,7 +8300,883 @@ function payRequest(f,p){
   }});
 }
 
-const APP_VER="v17 · 15.10.2026";
+
+/* ======================================================================
+   v18 — entrate nella timeline di cassa (mutuo, incassi, caparre).
+          Le voci in entrata si sommano con segno opposto, così i totali
+          per settimana e per mese danno il fabbisogno netto di cassa
+   ====================================================================== */
+function isIn(it){ return !!(it&&it.inflow) }
+function signOf(it){ return isIn(it)?-1:1 }
+function outSum(list){ return (list||[]).filter(x=>!isIn(x)).reduce((s,x)=>s+N(x.amount)*vatKi(x),0) }
+function inSum(list){ return (list||[]).filter(isIn).reduce((s,x)=>s+N(x.amount)*vatKi(x),0) }
+const VSG=(v,it)=>(isIn(it)?"+ ":"")+eur0(N(v)*vatKi(it));
+const eurSigned=v=>(v<-0.5?"+ "+eur0(-v):eur0(v));
+const PSTAT_IN=[["previsto","Prevista"],["confermato","Confermata"],["pagato","Incassata"]];
+const pstatL=(k,it)=>isIn(it)?((PSTAT_IN.find(x=>x[0]===k)||["","—"])[1]):pstatLabel(k);
+const colIn=it=>it.status==="pagato"?"#2F7D7D":it.status==="confermato"?"#2E7FA8":"#5B7A99";
+
+function planGroups(){
+  const groups=[], by={};
+  (S.plan||[]).forEach(it=>{
+    if(it.recId){
+      if(!by[it.recId]){ by[it.recId]={rec:true,key:it.recId,items:[]}; groups.push(by[it.recId]) }
+      by[it.recId].items.push(it);
+    } else groups.push({rec:false,key:it.id,items:[it]});
+  });
+  groups.forEach(g=>{
+    g.items.sort((a,b)=>((N(a.recIdx)||0)-(N(b.recIdx)||0))||String(a.date||"").localeCompare(String(b.date||"")));
+    g.first=g.items[0];
+    g.last=g.items[g.items.length-1];
+    g.n=g.items.length;
+    g.tot=g.items.reduce((s,x)=>s+N(x.amount),0);
+    const a=g.items.map(x=>N(x.amount));
+    g.min=Math.min.apply(null,a); g.max=Math.max.apply(null,a);
+    g.paid=g.items.filter(x=>x.status==="pagato").length;
+    g.conf=g.items.filter(x=>x.status==="confermato").length;
+    g.col=g.paid===g.n?"#3C7A57":g.conf?"#C4712B":"#6E7D8C";
+    g.totV=vatSum(g.items);
+    g.noVat=!!g.first.noVat;
+    g.inflow=!!g.first.inflow;
+  });
+  return groups;
+}
+
+function drawPayGantt(host,p){
+  if(!S.plan.length){
+    host.innerHTML='<div class="empty"><div class="big">Nessun pagamento pianificato</div>'+
+      'Aggiungi uscite ed entrate previste e vedrai la cassa settimana per settimana.'+
+      (canWrite()?'<div style="margin-top:14px"><button class="btn btn-pri" id="pl_add0">'+IC.plus+'Aggiungi pagamento previsto</button></div>':'')+'</div>';
+    const b=$("#pl_add0",host); if(b) b.addEventListener("click",()=>planModal(null));
+    return;
+  }
+  const R=payRange(S.tasks,p);
+  const W=R.weeks*COL;
+  const L=ganttLayers(R,W);
+  const G=planGroups();
+  const weeks=[];
+  for(let w=0;w<R.weeks;w++) weeks.push({sum:0,items:[],label:"Settimana del "+fmtD(iso(addD(R.start,w*7)))});
+  S.plan.forEach(it=>{
+    const w=weeksBetween(R.start,pd(it.date)||R.start);
+    if(w>=0&&w<R.weeks){ weeks[w].sum+=N(it.amount)*vatKi(it)*signOf(it); weeks[w].items.push(it) }
+  });
+  const maxW=Math.max.apply(null,weeks.map(w=>Math.abs(w.sum)).concat([1]));
+  const months=L.months.map(mm=>{
+    let s=0,its=[];
+    for(let k=mm.idx;k<mm.idx+mm.span;k++){ s+=weeks[k].sum; its=its.concat(weeks[k].items) }
+    return {span:mm.span,sum:s,items:its,
+      short:MESI[mm.mo].slice(0,3).toUpperCase()+" "+String(mm.year).slice(2),
+      label:MESI[mm.mo]+" "+mm.year};
+  });
+  S._payAgg={weeks:weeks,months:months};
+  const todayX=((new Date()-R.start)/DAY)/7*COL;
+  const col=it=>isIn(it)?colIn(it):(it.status==="pagato"?"#3C7A57":it.status==="confermato"?"#C4712B":"#6E7D8C");
+  const xOf=it=>clamp(weeksBetween(R.start,pd(it.date)||R.start),0,R.weeks-1)*COL;
+
+  /* una riga per gruppo: le rate mensili stanno sulla stessa linea */
+  const rows=G.map(g=>{
+    const bars=g.items.map((it,i)=>{
+      const x=xOf(it);
+      const span=Math.max(1,N(it.weeks)||1);
+      let width=Math.max(74,span*COL);
+      if(g.rec&&g.items[i+1]){
+        const gap=xOf(g.items[i+1])-x-4;
+        width=Math.max(32,Math.min(width,gap));
+      }
+      const mini=width<64;
+      return '<div class="pay-bar'+(it.status==="pagato"?" done":"")+(mini?" mini":"")+
+        (isIn(it)?" in":"")+'" data-pb="'+it.id+'" style="left:'+x+'px;width:'+width+'px;background-color:'+col(it)+'">'+
+        (mini?'':'<span class="pd"></span>')+'<span>'+esc(VSG(it.amount,it))+'</span></div>';
+    }).join("");
+    return '<div class="g-row" style="width:'+W+'px"><div class="g-track" style="width:'+W+'px">'+
+      '<div class="g-grid">'+L.grid+'</div>'+bars+'</div></div>';
+  }).join("");
+
+  const left=G.map(g=>{
+    const it=g.first;
+    const who=(p.partners||[]).find(x=>x.id===it.paidBy);
+    const tags=(g.rec?'<span class="recbadge">mensile ×'+g.n+'</span>':'')+
+      (g.inflow?'<span class="inbadge">entrata</span>':'')+
+      (it.noVat?'<span class="novat">no iva</span>':'');
+    const nm='<span class="nm"'+(canWrite()?' data-pe="'+it.id+'" style="cursor:pointer"':'')+'>'+
+      esc(it.label||it.supplier||"Pagamento")+
+      (it.supplier?'<span class="dim" style="font-weight:500"> · '+esc(it.supplier)+'</span>':'')+
+      (who?'<span class="dim" style="font-weight:500"> · '+esc(who.name)+'</span>':'')+'</span>'+
+      (tags?'<span class="tags">'+tags+'</span>':'');
+    const imp=g.rec
+      ?'<span class="wk two" style="width:82px;text-align:right;font-weight:700;color:var(--ink)">'+
+         (g.min===g.max?VSG(g.min,it):VSG(g.min,it)+"–"+VSG(g.max,it))+'<small>tot '+(g.inflow?"+ ":"")+eur0(g.totV)+'</small></span>'
+      :'<span class="wk" style="width:82px;text-align:right;font-weight:700;color:var(--ink);display:block">'+VSG(it.amount,it)+'</span>';
+    const hnd=canWrite()?'<span class="hnd"><button class="btn btn-xs" data-pe="'+it.id+'">'+IC.pen+'</button>'+
+      '<button class="btn btn-xs" '+(g.rec?'data-pgd="'+g.key+'"':'data-pd="'+it.id+'"')+'>'+IC.trash+'</button></span>':'';
+    return '<div class="g-row"><div class="g-li pl" '+(g.rec?'data-pg="'+g.key+'"':'data-pl="'+it.id+'"')+'>'+
+      '<span style="width:8px;height:8px;border-radius:50%;background:'+g.col+';flex:none"></span>'+
+      nm+hnd+imp+'</div></div>';
+  }).join("");
+
+  host.innerHTML='<div class="gantt" style="border:0;border-radius:0;box-shadow:none"><div class="g-scroll">'+
+    '<div class="g-left"><div class="g-rowh"><div class="g-lh"><span class="eyebrow" style="flex:1">Voce di cassa</span>'+
+      '<span class="eyebrow" style="width:82px;text-align:right">Importo</span></div></div>'+
+      left+
+      (canWrite()?'<div class="g-addrow"><button type="button" id="pl_addrow">'+IC.plus+'Aggiungi pagamento</button></div>':'')+
+      '<div class="g-row" style="height:58px;background:var(--surface-2);border-bottom:0"><div class="wk-lbl">'+
+        '<div><div class="eyebrow">Cassa per settimana</div>'+
+        '<div class="mono" style="font-size:10.5px;color:var(--ink-3)">picco '+eur0(maxW)+'</div></div></div></div>'+
+      '<div class="g-row" style="height:44px;background:var(--surface-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">'+
+        '<div class="wk-lbl"><div><div class="eyebrow" style="color:var(--accent)">Totale per mese</div>'+
+        '<div class="mono" style="font-size:10.5px;color:var(--ink-3)">passa sopra per lo spaccato</div></div></div></div>'+
+    '</div>'+
+    '<div class="g-right" id="gr"><div style="width:'+W+'px">'+
+      '<div class="g-rowh" style="flex-direction:column;align-items:stretch;position:relative">'+
+        '<div class="g-mon">'+L.mon+'</div><div class="g-wk" style="position:relative">'+
+        '<div class="g-grid">'+L.bands+'</div>'+L.wk+'</div></div>'+
+      '<div style="position:relative">'+rows+
+        (canWrite()?'<div class="g-row" style="width:'+W+'px"><div class="g-track" style="width:'+W+'px"><div class="g-grid">'+L.grid+'</div></div></div>':'')+
+        '<div class="wk-tot">'+weeks.map((w,i)=>'<div style="width:'+COL+'px" data-wt="'+i+'"'+
+          (Math.abs(w.sum)>0.5?' class="has'+(w.sum<0?' neg':'')+'"':'')+'>'+
+          (Math.abs(w.sum)>0.5?'<i style="height:'+clamp(Math.abs(w.sum)/maxW*42,4,42)+'px"></i>':'')+'</div>').join("")+'</div>'+
+        '<div class="mon-tot">'+months.map((mm,i)=>'<div data-mt="'+i+'" style="width:'+(mm.span*COL)+'px"'+
+          (Math.abs(mm.sum)>0.5?' class="has'+(mm.sum<0?' neg':'')+'"':'')+'>'+
+          (mm.span>=2?'<u>'+esc(mm.short)+'</u>':'')+
+          '<b>'+(Math.abs(mm.sum)>0.5?eurSigned(mm.sum):"—")+'</b></div>').join("")+'</div>'+
+        (todayX>=0&&todayX<=W?'<div class="g-today" style="left:'+todayX+'px;top:0;bottom:0"></div>':'')+
+      '</div></div></div></div>'+
+    '<div class="legend"><span class="li"><span class="sw" style="background:#6E7D8C"></span>Previsto</span>'+
+    '<span class="li"><span class="sw" style="background:#C4712B"></span>Confermato</span>'+
+    '<span class="li"><span class="sw" style="background:#3C7A57"></span>Pagato</span>'+
+    '<span class="li"><span class="sw" style="background:#2E7FA8"></span>Entrata</span>'+
+    '<span class="li" style="margin-left:auto">Trascina per spostare la settimana · i totali in basso sono al netto delle entrate</span></div></div>';
+
+  keepScroll(host,"pay",R);
+  bindPayTips(host,R,p);
+  const ar=$("#pl_addrow",host); if(ar) ar.addEventListener("click",()=>planModal(null));
+  $$("[data-pe]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
+    const it=S.plan.find(x=>x.id===b.dataset.pe); if(it) planModal(it)}));
+  $$("[data-pd]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
+    const it=S.plan.find(x=>x.id===b.dataset.pd); if(!it) return;
+    confirmBox("Elimina pagamento","Rimuovere «"+(it.label||it.supplier||"voce")+"» dal piano di cassa?","Elimina",
+      async()=>{ await del(ppath("plan/"+it.id)); await loadProjectData(S.pid); render(); toast("Rimosso dal piano"); return true })}));
+  $$("[data-pgd]",host).forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();
+    const g=planGroups().find(x=>x.key===b.dataset.pgd); if(!g) return;
+    confirmBox("Elimina serie mensile",
+      "Rimuovere tutte le "+g.n+" rate di «"+(g.first.label||g.first.supplier||"pagamento")+"» ("+eur0(g.totV)+" in totale)?",
+      "Elimina tutta la serie",
+      async()=>{ for(const it of g.items) await del(ppath("plan/"+it.id));
+        await loadProjectData(S.pid); render(); toast(g.n+" rate eliminate"); return true })}));
+  bindPayDrag(host,R,W,p);
+}
+
+function payTip(it,bar,R,live,p){
+  let date=it.date, wk=Math.max(1,N(it.weeks)||1);
+  if(live){ const g=geomDates(bar,R); date=g.start; wk=g.weeks }
+  const who=((p&&p.partners)||[]).find(x=>x.id===it.paidBy);
+  const c=it.status==="pagato"?"#3C7A57":it.status==="confermato"?"#C4712B":"#6E7D8C";
+  const fine=iso(addD(pd(date)||new Date(),wk*7-1));
+  return '<div class="t"><i style="background:'+c+'"></i>'+esc(it.label||it.supplier||"Pagamento")+'</div>'+
+    (it.recId?'<div class="r"><span>Serie mensile</span><span>rata '+(N(it.recIdx)||1)+' di '+(N(it.recTot)||1)+'</span></div>':'')+
+    (it.supplier?tipRow("Fornitore",it.supplier):"")+
+    tipRow(isIn(it)?"Entrata":"Importo",VSG(it.amount,it),true)+
+    (it.noVat?tipRow("IVA","non soggetto · sempre imponibile"):"")+
+    '<div class="sep"></div>'+
+    tipRow("Settimana",fmtDL(date))+
+    (wk>1?tipRow("Fine",fmtDL(fine)):"")+
+    tipRow("Durata",wk+(wk===1?" settimana":" settimane"))+
+    '<div class="r"><span>Stato</span><span>'+esc(pstatL(it.status,it))+'</span></div>'+
+    (isIn(it)?tipSoci(p,it.amount,it.paidBy,"Quota per socio",it):tipSoci(p,it.amount,it.paidBy,who?("A carico di "+who.name):"Quota per socio",it))+
+    (live?'<div class="r" style="margin-top:5px"><span style="color:var(--accent)">rilascia per confermare</span></div>':'');
+}
+
+function planTip(it,p){
+  const who=((p&&p.partners)||[]).find(x=>x.id===it.paidBy);
+  const c=it.status==="pagato"?"#3C7A57":it.status==="confermato"?"#C4712B":"#6E7D8C";
+  const wk=Math.max(1,N(it.weeks)||1);
+  const tot=outSum(S.plan);
+  const peso=(tot&&!isIn(it))?N(it.amount)*vatKi(it)/tot*100:0;
+  return '<div class="t"><i style="background:'+c+'"></i>'+esc(it.label||it.supplier||"Pagamento")+'</div>'+
+    (it.recId?'<div class="r"><span>Serie mensile</span><span>rata '+(N(it.recIdx)||1)+' di '+(N(it.recTot)||1)+'</span></div>':'')+
+    (it.supplier?tipRow("Fornitore",it.supplier):"")+
+    (isIn(it)?"":tipRow("Voce di costo",PLCAT[it.cat]||it.cat||"—"))+
+    tipRow(isIn(it)?"Entrata":"Importo",VSG(it.amount,it),true)+
+    (it.noVat?tipRow("IVA","non soggetto · sempre imponibile"):"")+
+    (isIn(it)?"":tipRow("Peso sulle uscite",pct(peso,1)))+
+    '<div class="sep"></div>'+
+    tipRow("Settimana di pagamento",fmtDL(it.date))+
+    (wk>1?tipRow("Durata",wk+" settimane"):"")+
+    '<div class="r"><span>Stato</span><span>'+esc(pstatL(it.status,it))+'</span></div>'+
+    tipRow(isIn(it)?"A beneficio di":"A carico di",who?who.name:"tutti i soci su quota")+
+    tipSoci(p,it.amount,it.paidBy,who?("A carico di "+who.name):"Quota per socio",it)+
+    (it.note?'<div class="sep"></div><div class="r"><span style="white-space:normal;max-width:240px;line-height:1.45">'+
+      esc(it.note)+'</span><span></span></div>':'');
+}
+
+function seriesTip(g,p){
+  const it=g.first;
+  return '<div class="t"><i style="background:'+g.col+'"></i>'+esc(it.label||it.supplier||"Pagamento")+'</div>'+
+    '<div class="r"><span>Serie mensile'+(g.inflow?" · entrate":"")+'</span><span>'+g.n+' rate</span></div>'+
+    (it.supplier?tipRow("Fornitore",it.supplier):"")+
+    (g.inflow?"":tipRow("Voce di costo",PLCAT[it.cat]||it.cat||"—"))+
+    tipRow(g.min===g.max?(g.inflow?"Entrata mensile":"Rata mensile"):"Rata · da / a",
+           g.min===g.max?VSG(g.min,g.first):(VSG(g.min,g.first)+" → "+VSG(g.max,g.first)))+
+    (g.noVat?tipRow("IVA","non soggetto · sempre imponibile"):"")+
+    tipRow("Totale della serie",(g.inflow?"+ ":"")+eur0(g.totV),true)+
+    '<div class="sep"></div>'+
+    tipRow("Prima rata",fmtDL(it.date))+
+    tipRow("Ultima rata",fmtDL(g.last.date))+
+    '<div class="r"><span>Stato</span><span>'+g.paid+(g.inflow?' incassate · ':' pagate · ')+g.conf+' confermate · '+(g.n-g.paid-g.conf)+' previste</span></div>'+
+    tipSociAggr(p,g.items,"Quota totale per socio")+
+    (it.note?'<div class="sep"></div><div class="r"><span style="white-space:normal;max-width:240px;line-height:1.45">'+
+      esc(it.note)+'</span><span></span></div>':'');
+}
+
+function weekTip(p,w){
+  if(!w.items.length) return '<div class="t"><i style="background:var(--ink-4)"></i>'+esc(w.label)+'</div>'+
+    '<div class="r"><span>Nessuna uscita in questa settimana</span><span></span></div>';
+  return '<div class="t"><i style="background:var(--accent)"></i>'+esc(w.label)+'</div>'+
+    tipRow("Saldo della settimana",eurSigned(w.sum),true)+
+    (inSum(w.items)?tipRow("di cui entrate","+ "+eur0(inSum(w.items))):"")+
+    '<div class="sep"></div>'+
+    w.items.slice(0,6).map(x=>tipRow((x.label||x.supplier||"Pagamento")+(x.noVat?" (no iva)":""),VSG(x.amount,x))).join("")+
+    (w.items.length>6?'<div class="r"><span>+ altre '+(w.items.length-6)+' voci</span><span></span></div>':'')+
+    tipSociAggr(p,w.items,"Quota della settimana");
+}
+
+function monthTip(p,m){
+  if(!m.items.length) return '<div class="t"><i style="background:var(--ink-4)"></i>'+esc(m.label)+'</div>'+
+    '<div class="r"><span>Nessuna uscita in questo mese</span><span></span></div>';
+  const it=m.items.slice().sort((a,b)=>N(b.amount)-N(a.amount));
+  return '<div class="t"><i style="background:var(--accent)"></i>'+esc(m.label)+'</div>'+
+    tipRow("Uscite del mese",eur0(outSum(m.items)),true)+
+    (inSum(m.items)?tipRow("Entrate del mese","+ "+eur0(inSum(m.items))):"")+
+    tipRow("Saldo del mese",eurSigned(m.sum),true)+
+    tipRow("Numero di voci",String(it.length))+
+    '<div class="sep"></div>'+
+    it.slice(0,7).map(x=>tipRow((x.label||x.supplier||"Pagamento")+(x.noVat?" (no iva)":"")+(x.recId?" ("+(N(x.recIdx)||1)+"/"+(N(x.recTot)||1)+")":""),VSG(x.amount,x))).join("")+
+    (it.length>7?'<div class="r"><span>+ altre '+(it.length-7)+' voci</span><span></span></div>':'')+
+    tipSociAggr(p,m.items,"Quota del mese per socio");
+}
+
+function vatExemptBase(p){
+  const cats=["lavori","progetto","altro","agenzia"].concat(p&&p.ivaOnPurchase?["acquisto"]:[]);
+  const inBase=x=>cats.indexOf(String(x.cat||"lavori"))>=0;
+  const a=(S.plan||[]).filter(x=>x.noVat&&!isIn(x)&&inBase(x)).reduce((s,x)=>s+N(x.amount),0);
+  const b=(S.fin||[]).filter(f=>f.kind==="payment"&&f.noVat&&!f.planId&&inBase(f)).reduce((s,f)=>s+N(f.amount),0);
+  return a+b;
+}
+
+function planModal(it){
+  const p=P(); const isNew=!it;
+  const parts=(p.partners||[]).map(x=>[x.id,x.name+" ("+pct(N(x.quota),0)+")"]);
+  const sib=it&&it.recId?(S.plan||[]).filter(x=>x.recId===it.recId):[];
+  const st={dir:(it&&it.inflow)?"in":"out"};
+  const b=el("div");
+  b.innerHTML=
+    '<div class="seg2" id="q_dir" style="margin-bottom:14px">'+
+      '<button type="button" data-d="out"'+(st.dir==="out"?' class="on"':'')+'>Uscita</button>'+
+      '<button type="button" data-d="in"'+(st.dir==="in"?' class="on inflow"':'')+'>Entrata (mutuo, incasso)</button>'+
+    '</div>'+
+    (it&&it.recId?'<div class="notice" style="margin-bottom:14px">'+IC.ref+
+      '<div>Rata <b>'+(N(it.recIdx)||1)+' di '+(N(it.recTot)||1)+'</b> di una serie mensile ('+sib.length+' rate nel piano).</div></div>':'')+
+    '<div class="f2">'+fld("q_lab","Voce","text",it?it.label:"","placeholder=\"es. 2° SAL impresa\"")+
+      fld("q_sup","Fornitore","text",it?it.supplier:"")+'</div>'+
+    '<div class="f3">'+fld("q_amt","Importo €","number",it?it.amount:"",'step="100"')+
+      fld("q_date","Settimana di pagamento","date",it?it.date:iso(monday(new Date())))+
+      fld("q_wk","Durata (settimane)","number",it?(N(it.weeks)||1):1,'min="1" max="26"')+'</div>'+
+    '<div class="f2">'+sel("q_st","Stato",it?it.status:"previsto",PSTAT)+
+      (parts.length?sel("q_by","A carico di / pagato da",it?it.paidBy:"",[["","Tutti i soci su quota"]].concat(parts))
+        :'<div class="field"><label>A carico di</label><input class="inp" disabled value="Nessun socio configurato"></div>')+'</div>'+
+    sel("q_cat","Voce di costo",it?it.cat:"lavori",[["lavori","Lavori / cantiere"],["progetto","Progetto e permessi"],
+      ["acquisto","Acquisto immobile"],["agenzia","Agenzia / commerciale"],["finanziari","Oneri finanziari"],["altro","Altro"]])+
+    fld("q_note","Note","textarea",it?it.note:"")+
+    '<label class="perm" style="margin-top:4px"><input type="checkbox" id="q_novat" data-nocase'+((it&&it.noVat)?" checked":"")+'>'+
+      '<span class="t">Voce non soggetta a IVA'+
+      '<span class="dim" style="display:block;font-weight:500">Oneri di urbanizzazione, bolli, imposte: resta a questo importo anche con lo switch «+ IVA» attivo.</span></span></label>'+
+    (isNew?'<label class="perm" style="margin-top:6px"><input type="checkbox" id="q_rec" data-nocase>'+
+      '<span class="t">Pagamento ricorrente ogni mese<span class="dim" style="display:block;font-weight:500">'+
+      'Per le uscite fisse: rata del finanziamento, canoni, utenze. Crea una rata al mese a partire dalla data indicata.</span></span></label>'+
+      '<div id="q_recbox" class="hide" style="margin-top:6px">'+
+      '<div class="f2">'+fld("q_recn","Per quanti mesi","number",12,'min="2" max="120"')+
+        '<div class="field"><label>Totale della serie</label><input class="inp" id="q_rectot" disabled value="—"></div>'+
+      '</div></div>':'')+
+    (it&&it.recId?'<label class="perm" style="margin-top:6px"><input type="checkbox" id="q_all" data-nocase>'+
+      '<span class="t">Applica a questa rata e a tutte le successive'+
+      '<span class="dim" style="display:block;font-weight:500">Le date restano quelle di ciascuna rata; cambiano importo, voce, stato e note.</span></span></label>':'')+
+    (it&&it.status!=="pagato"?'<label class="perm" id="q_mkw" style="margin-top:4px"><input type="checkbox" id="q_mk">'+
+      '<span class="t">Segna come pagato e registralo nei pagamenti effettuati</span></label>':'');
+
+  const refreshRec=()=>{
+    const box=$("#q_recbox",b), ck=$("#q_rec",b);
+    if(!box||!ck) return;
+    box.classList.toggle("hide",!ck.checked);
+    const n=clamp(N($("#q_recn",b).value)||12,2,120);
+    const tot=$("#q_rectot",b);
+    if(tot) tot.value=ck.checked?(n+" rate × "+eur0(N($("#q_amt",b).value))+" = "+eur0(n*N($("#q_amt",b).value))):"—";
+  };
+  const syncDir=()=>{
+    const inflow=st.dir==="in";
+    $$("#q_dir button",b).forEach(x=>{ x.className=(x.dataset.d===st.dir)?(inflow?"on inflow":"on"):"" });
+    const se=$("#q_st",b);
+    if(se){ const op=Array.prototype.slice.call(se.options).find(x=>x.value==="pagato"); if(op) op.textContent=inflow?"Incassato":"Pagato" }
+    const mk=$("#q_mkw",b); if(mk) mk.classList.toggle("hide",inflow);
+    const am=$("#q_amt",b); if(am&&am.previousElementSibling) am.previousElementSibling.textContent=inflow?"Importo € (entrata)":"Importo €";
+    const nv=$("#q_novat",b); if(nv&&inflow) nv.checked=false;
+  };
+  $$("#q_dir button",b).forEach(bt=>bt.addEventListener("click",()=>{ st.dir=bt.dataset.d; syncDir() }));
+  syncDir();
+  const rc=$("#q_rec",b); if(rc) rc.addEventListener("change",refreshRec);
+  const rn=$("#q_recn",b); if(rn) rn.addEventListener("input",refreshRec);
+  const ra=$("#q_amt",b); if(ra) ra.addEventListener("input",refreshRec);
+
+  const readForm=body=>({
+    label:$("#q_lab",body).value.trim(),supplier:$("#q_sup",body).value.trim(),
+    amount:N($("#q_amt",body).value),
+    weeks:clamp(N($("#q_wk",body).value)||1,1,26),
+    paidBy:$("#q_by",body)?$("#q_by",body).value:"",
+    cat:$("#q_cat",body).value,note:$("#q_note",body).value.trim(),
+    inflow:st.dir==="in",
+    noVat:!!($("#q_novat",body)&&$("#q_novat",body).checked)
+  });
+
+  modal({title:isNew?"Nuova voce di cassa":"Modifica voce di cassa",wide:true,
+    ok:isNew?"Aggiungi al piano":"Salva",body:b,
+    danger:isNew?null:"Elimina",
+    onDelete:async(body)=>{
+      const all=$("#q_all",body)&&$("#q_all",body).checked;
+      const targets=all&&it.recId
+        ?(S.plan||[]).filter(x=>x.recId===it.recId&&(N(x.recIdx)||0)>=(N(it.recIdx)||0))
+        :[it];
+      for(const t of targets) await del(ppath("plan/"+t.id));
+      await loadProjectData(S.pid); render();
+      toast(targets.length>1?(targets.length+" rate eliminate"):"Eliminato");
+      return true;
+    },
+    onOk:async(body)=>{
+      const f=readForm(body);
+      if(!f.amount){toast("Inserisci l'importo",true);return false}
+      const mk=$("#q_mk",body)&&$("#q_mk",body).checked;
+      const stato=mk?"pagato":$("#q_st",body).value;
+      const draw=pd($("#q_date",body).value)||new Date();
+      const d0=monday(draw);
+      const base=Object.assign({},f,{date:iso(d0),status:stato});
+
+      /* nuova serie mensile */
+      const recOn=isNew&&$("#q_rec",body)&&$("#q_rec",body).checked;
+      if(recOn){
+        const n=clamp(N($("#q_recn",body).value)||12,2,120);
+        const rid=uid("rec");
+        for(let k=0;k<n;k++){
+          const row=Object.assign({},base,{date:iso(payWeek(addMonthsKeep(draw,k))),
+            recId:rid,recIdx:k+1,recTot:n,
+            status:k===0?stato:(stato==="pagato"?"confermato":stato)});
+          if(!await put(ppath("plan/"+uid("q")),row)) return false;
+        }
+        await loadProjectData(S.pid); render();
+        toast(n+(st.dir==="in"?" entrate mensili pianificate · ":" rate mensili pianificate · ")+eur0(n*f.amount)+" in totale");
+        return true;
+      }
+
+      /* modifica estesa a tutta la serie */
+      const all=!isNew&&$("#q_all",body)&&$("#q_all",body).checked&&it.recId;
+      if(all){
+        const targets=(S.plan||[]).filter(x=>x.recId===it.recId&&(N(x.recIdx)||0)>=(N(it.recIdx)||0));
+        for(const t of targets){
+          const upd=Object.assign({},f,{status:stato,date:t.id===it.id?base.date:(t.date||base.date)});
+          if(!await patch(ppath("plan/"+t.id),upd)) return false;
+        }
+        await loadProjectData(S.pid); render();
+        toast(targets.length+" rate aggiornate");
+        return true;
+      }
+
+      const ok=isNew?await put(ppath("plan/"+uid("q")),base):await patch(ppath("plan/"+it.id),base);
+      if(!ok) return false;
+      if(mk){
+        await put(ppath("fin/"+uid("f")),{kind:"payment",supplier:base.supplier,desc:base.label||"Pagamento da piano",
+          amount:base.amount,date:iso(new Date()),method:"bonifico",paidBy:base.paidBy,cat:base.cat,by:S.me.id,noVat:!!base.noVat});
+      }
+      await loadProjectData(S.pid); render(); toast(isNew?(st.dir==="in"?"Entrata pianificata":"Pagamento pianificato"):"Piano aggiornato"); return true;
+    }});
+}
+
+function viewFinance(sc,p){
+  const m=metrics(p,S.fin,S.tasks);
+  const lb=ledgerBalances(p,S.fin,S.ledger);
+  const reqs=S.fin.filter(f=>f.kind==="request");
+  const pays=S.fin.filter(f=>f.kind==="payment");
+  const planOut=outSum(S.plan), planIn=inSum(S.plan), planNet=planOut-planIn;
+  const planTot=planOut;
+  const planPaid=outSum(S.plan.filter(x=>x.status==="pagato"));
+  const paidV=vatSum(pays);
+  const worksV=N(m.works)*vatK();
+  let kpis="";
+  if(canF("f_budget")) kpis+=kpi("Budget lavori",VE(m.works),IC.scale,"da scheda progetto","");
+  if(canF("f_pay")) kpis+=kpi("Pagato",eur0(paidV),IC.euro,pct(m.spentPct,0)+" del budget",m.spentPct>100?"bad":"acc");
+  if(canF("f_req")) kpis+=kpi("Richieste aperte",VE(m.reqOpen),IC.doc,reqs.filter(r=>r.status!=="paid").length+" documenti","info");
+  if(canF("f_plan")) kpis+=kpi("Piano pagamenti",eur0(planTot),IC.cal,planIn?("netto "+eurSigned(planNet)+" dopo le entrate"):(eur0(planTot-planPaid)+" ancora da pagare"),"warn");
+  if(canF("f_budget")) kpis+=kpi("Residuo budget",eur0(worksV-paidV),IC.wallet,(m.works-m.paid)<0?"budget superato":"disponibile",(m.works-m.paid)<0?"bad":"good");
+  const page=el("div","page");
+  page.innerHTML='<div class="page-head"><div><h1>Finance</h1>'+
+    '<div class="sub">Richieste fornitori, pagamenti, piano di cassa e partite tra soci</div></div><div class="sp"></div>'+
+    (canWrite()?'<div class="row">'+
+      (canF("f_plan")?'<button class="btn btn-sm" id="f_pl">'+IC.plus+'Pagamento previsto</button>':'')+
+      (canF("f_req")?'<button class="btn btn-sm" id="f_req">'+IC.plus+'Richiesta</button>':'')+
+      (canF("f_pay")?'<button class="btn btn-pri btn-sm" id="f_pay">'+IC.plus+'Pagamento</button>':'')+
+      '</div>':'')+'</div>'+
+    '<div class="grid g4" style="margin-bottom:12px">'+kpis+'</div>'+
+    (canF("f_plan")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Timeline pagamenti</h3>'+
+      '<div class="sp"></div><span class="chip acc">'+eur0(planTot)+'</span>'+
+      (planIn?'<span class="chip good">+ '+eur0(planIn)+'</span>':'')+
+      '<button class="btn btn-sm" id="pl_today">Oggi</button>'+
+      '<button class="btn btn-sm" id="pl_xls">'+IC.dl+'Excel</button></div>'+
+      '<div id="pay-host"></div></div>'+
+      '<div class="grid g2" style="margin-bottom:12px"><div class="card"><div class="card-h"><h3>Totali piano di cassa</h3></div>'+
+      '<div class="card-p" id="pl_tot"></div></div>'+
+      '<div class="card"><div class="card-h"><h3>Ripartizione per quote</h3><div class="sp"></div>'+
+      (canWrite()?'<button class="btn btn-sm" id="f_soci2">Soci e quote</button>':'')+'</div>'+
+      '<div class="card-p" id="pl_split"></div></div></div>':'')+
+    (canF("f_req")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Richieste di pagamento</h3><div class="sp"></div>'+
+      '<span class="chip">'+reqs.length+'</span></div><div class="tbl-wrap"><table class="tbl resp"><thead><tr>'+
+      '<th>Fornitore</th><th>Descrizione</th><th>Data</th><th>Scadenza</th><th class="r">Importo</th><th>Stato</th><th></th>'+
+      '</tr></thead><tbody id="rq"></tbody></table></div></div>':'')+
+    (canF("f_pay")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Pagamenti effettuati</h3><div class="sp"></div>'+
+      '<span class="chip">'+pays.length+'</span></div><div class="tbl-wrap"><table class="tbl resp"><thead><tr>'+
+      '<th>Data</th><th>Fornitore</th><th>Descrizione</th><th>Pagato da</th><th>Modalità</th><th class="r">Importo</th><th></th>'+
+      '</tr></thead><tbody id="pb"></tbody></table></div></div>':'')+
+    (canF("f_ledger")||canF("f_quotas")?'<div class="grid g21">'+
+      (canF("f_ledger")?'<div class="card"><div class="card-h"><h3>Conti tra soci</h3><div class="sp"></div>'+
+        (canWrite()?'<button class="btn btn-sm" id="f_soci">Soci e quote</button>'+
+        '<button class="btn btn-sm" id="f_le">'+IC.plus+'Partita</button>':'')+'</div>'+
+        '<div class="tbl-wrap"><table class="tbl resp"><thead><tr><th>Data</th><th>Ha pagato</th><th>Per conto di</th>'+
+        '<th>Descrizione</th><th class="r">Importo</th><th></th></tr></thead><tbody id="lg"></tbody></table></div></div>':'')+
+      (canF("f_quotas")?'<div class="card"><div class="card-h"><h3>Saldi</h3><div class="sp"></div>'+
+        '<button class="btn btn-sm" id="f_who">Chi deve a chi</button></div><div class="card-p" id="bal"></div></div>':'')+
+    '</div>':'');
+  sc.innerHTML=""; sc.appendChild(page);
+
+  if(canF("f_plan")){
+    drawPayGantt($("#pay-host",page),p);
+    const tp=$("#pl_today",page); if(tp) tp.addEventListener("click",()=>scrollToToday(page,ganttRange(S.tasks,p),"pay"));
+    const xb=$("#pl_xls",page); if(xb) xb.addEventListener("click",async()=>{
+      xb.disabled=true; const o=xb.innerHTML; xb.textContent="Genero…";
+      await exportPayXlsx(p); xb.disabled=false; xb.innerHTML=o; });
+    const residuo=planTot-planPaid;
+    $("#pl_tot",page).innerHTML=
+      '<div class="split"><span class="l">Uscite pianificate ('+S.plan.filter(x=>!isIn(x)).length+')</span><span class="v">'+eur0(planOut)+'</span></div>'+
+      (planIn?'<div class="split"><span class="l">Entrate previste ('+S.plan.filter(isIn).length+')</span>'+
+        '<span class="v" style="color:var(--good)">+ '+eur0(planIn)+'</span></div>'+
+        '<div class="split tot"><span class="l">Fabbisogno netto di cassa</span><span class="v">'+eurSigned(planNet)+'</span></div>':'')+
+      '<div class="split"><span class="l">Già pagati</span><span class="v" style="color:var(--good)">'+eur0(planPaid)+'</span></div>'+
+      '<div class="split"><span class="l">Ancora da pagare</span><span class="v" style="color:var(--warn)">'+eur0(residuo)+'</span></div>'+
+      (canF("f_budget")?'<div class="split"><span class="l">Budget lavori</span><span class="v">'+VE(m.works)+'</span></div>'+
+       '<div class="split tot"><span class="l">Scostamento piano / budget</span><span class="v" style="color:'+
+       ((planTot-m.works)>0?"var(--bad)":"var(--good)")+'">'+eur0(planTot-worksV)+'</span></div>':'')+
+      '<div style="margin-top:12px"><div class="row" style="justify-content:space-between;margin-bottom:6px">'+
+      '<span class="eyebrow">Avanzamento piano</span><span class="mono" style="font-size:11.5px;font-weight:700">'+
+      pct(planTot?planPaid/planTot*100:0,0)+'</span></div><div class="bar good" style="height:9px"><i style="width:'+
+      clamp(planTot?planPaid/planTot*100:0,0,100)+'%"></i></div></div>';
+    const parts=(p.partners||[]);
+    const qs=parts.reduce((s,x)=>s+N(x.quota),0)||100;
+    $("#pl_split",page).innerHTML= parts.length?
+      '<p class="dim" style="font-size:11.5px;margin-bottom:10px">Quanto tocca a ciascun socio sul fabbisogno netto di cassa (uscite meno entrate), in base alle quote.</p>'+
+      '<table class="tbl" style="font-size:12.5px"><thead><tr><th style="padding-left:0">Socio</th><th class="r">Quota</th>'+
+      '<th class="r">Su piano</th><th class="r" style="padding-right:0">Già versato</th></tr></thead><tbody>'+
+      parts.map(x=>{
+        const versato=pays.reduce((s,f)=>s+paidByOf(f,x.id)*vatKi(f),0);
+        const dovuto=planNet*(N(x.quota)/qs);
+        return '<tr><td style="padding-left:0"><b>'+esc(x.name)+'</b></td><td class="r">'+pct(N(x.quota),1)+'</td>'+
+          '<td class="r" style="font-weight:700">'+eurSigned(dovuto)+'</td>'+
+          '<td class="r" style="padding-right:0;color:'+(versato>=dovuto?"var(--good)":"var(--ink-2)")+'">'+eur0(versato)+'</td></tr>'}).join("")+
+      '<tr><td style="padding-left:0;font-weight:700">Totale</td><td class="r">'+pct(qs,1)+'</td>'+
+      '<td class="r" style="font-weight:800">'+eurSigned(planNet)+'</td><td class="r" style="padding-right:0;font-weight:700">'+eur0(paidV)+'</td></tr>'+
+      '</tbody></table>'
+      :'<div class="dim" style="font-size:12.5px">Nessun socio configurato: aggiungili dalla scheda progetto o dal pulsante «Soci e quote».</div>';
+    const s2=$("#f_soci2",page); if(s2) s2.addEventListener("click",()=>partnersModal(p));
+  }
+
+  const rq=$("#rq",page);
+  if(rq){
+    if(!reqs.length) rq.innerHTML='<tr><td colspan="7"><div class="empty">Nessuna richiesta registrata.</div></td></tr>';
+    reqs.forEach(f=>{
+      const overdue=f.status!=="paid"&&f.due&&f.due<iso(new Date());
+      const tr=el("tr");
+      tr.innerHTML='<td class="hd"><b>'+esc(f.supplier||"—")+'</b></td><td data-l="Descrizione" class="muted">'+esc(f.desc||"")+'</td>'+
+        '<td data-l="Data" class="mono" style="font-size:12px">'+fmtD(f.date)+'</td>'+
+        '<td data-l="Scadenza" class="mono" style="font-size:12px'+(overdue?';color:var(--bad);font-weight:700':'')+'">'+(f.due?fmtD(f.due):"—")+'</td>'+
+        '<td data-l="Importo" class="r" style="font-weight:700">'+VI(f.amount,f)+(f.noVat?' <span class="novat">no iva</span>':'')+'</td>'+
+        '<td data-l="Stato"><span class="chip '+fstatChip(f.status)+'">'+esc(fstatLabel(f.status))+'</span></td>'+
+        '<td class="r act-cell"><span class="act row" style="justify-content:flex-end;gap:4px">'+
+        (canWrite()&&f.status!=="paid"?'<button class="btn btn-xs" data-mk="'+f.id+'">Paga</button>':'')+
+        (canWrite()?'<button class="btn btn-xs" data-fe="'+f.id+'">'+IC.pen+'</button>'+
+        '<button class="btn btn-xs" data-fd="'+f.id+'">'+IC.trash+'</button>':'')+'</span></td>';
+      rq.appendChild(tr);
+    });
+  }
+  const pb=$("#pb",page);
+  if(pb){
+    if(!pays.length) pb.innerHTML='<tr><td colspan="7"><div class="empty">Nessun pagamento registrato.</div></td></tr>';
+    pays.forEach(f=>{
+      const tr=el("tr");
+      tr.innerHTML='<td class="hd"><b>'+fmtD(f.date)+'</b> · '+esc(f.supplier||"—")+
+          (f.planId?' <span class="chip info">da piano</span>':'')+'</td>'+
+        '<td data-l="Descrizione" class="muted">'+esc(f.desc||"")+'</td>'+
+        '<td data-l="Pagato da">'+payerChips(f,p)+'</td>'+
+        '<td data-l="Modalità" class="muted" style="font-size:12px">'+esc((METHODS.find(x=>x[0]===f.method)||["","—"])[1])+'</td>'+
+        '<td data-l="Importo" class="r" style="font-weight:700">'+VI(f.amount,f)+(f.noVat?' <span class="novat">no iva</span>':'')+'</td>'+
+        '<td class="r act-cell"><span class="act row" style="justify-content:flex-end;gap:4px">'+
+        (canWrite()?'<button class="btn btn-xs" data-fe="'+f.id+'">'+IC.pen+'</button>'+
+        '<button class="btn btn-xs" data-fd="'+f.id+'">'+IC.trash+'</button>':'')+'</span></td>';
+      pb.appendChild(tr);
+    });
+  }
+  const lg=$("#lg",page);
+  if(lg){
+    if(!S.ledger.length) lg.innerHTML='<tr><td colspan="6"><div class="empty">Nessuna partita tra soci.<br>'+
+      '<span style="font-size:12px">Esempio: «Aloi ha pagato 1.000 € per conto di Pasta».</span></div></td></tr>';
+    S.ledger.forEach(l=>{
+      const a=(p.partners||[]).find(x=>x.id===l.from), bb=(p.partners||[]).find(x=>x.id===l.to);
+      const tr=el("tr");
+      tr.innerHTML='<td class="hd"><b>'+esc(a?a.name:"—")+'</b> → '+esc(bb?bb.name:"—")+
+          (l.kind==="settle"?' <span class="chip good">rimborso</span>':'')+'</td>'+
+        '<td data-l="Data" class="mono" style="font-size:12px">'+fmtD(l.date)+'</td>'+
+        '<td data-l="Descrizione" class="muted">'+esc(l.desc||"")+'</td>'+
+        '<td data-l="Importo" class="r" style="font-weight:700">'+VE(l.amount)+'</td>'+
+        '<td class="r act-cell"><span class="act">'+(canWrite()?'<button class="btn btn-xs btn-danger" data-ld="'+l.id+'">'+IC.trash+'</button>':'')+'</span></td>';
+      lg.appendChild(tr);
+    });
+  }
+  const bal=$("#bal",page);
+  if(bal){
+    if(!lb.rows.length){ bal.innerHTML='<div class="dim" style="font-size:12.5px">Configura i soci per vedere i saldi.</div>' }
+    else{
+      bal.innerHTML='<div class="split"><span class="l">Totale versato</span><span class="v">'+VE(lb.totalPaid)+'</span></div>'+
+        lb.rows.map(r=>{
+          const tone=r.balance>1?"good":r.balance<-1?"bad":"";
+          return '<div class="balrow" data-soc="'+r.id+'" style="border-bottom:1px solid var(--line-2)" '+
+            'title="Apri lo spaccato del conto di '+esc(r.name)+'">'+
+          '<div class="row" style="justify-content:space-between;margin-bottom:6px">'+
+            '<span style="font-size:13px;font-weight:700">'+esc(r.name)+' <span class="dim mono" style="font-size:11px;font-weight:500">quota '+pct(r.quota,0)+'</span></span>'+
+            '<span class="chip '+tone+'">'+(r.balance>1?"a credito":r.balance<-1?"a debito":"in pari")+' '+VE(Math.abs(r.balance))+'</span></div>'+
+          '<table class="mini-tbl" style="width:100%"><tr><td class="dim">Versato</td><td class="r">'+VE(r.paid)+'</td></tr>'+
+          '<tr><td class="dim">Dovuto su quota</td><td class="r">'+VE(r.due)+'</td></tr>'+
+          (Math.abs(r.manual)>0.5?'<tr><td class="dim">Partite dirette</td><td class="r">'+VE(r.manual)+'</td></tr>':'')+
+          '</table></div>'}).join("")+
+        '<p class="dim" style="font-size:11.5px;margin-top:10px">Tocca un socio per vedere lo spaccato dei movimenti.</p>';
+      $$("[data-soc]",bal).forEach(x=>x.addEventListener("click",()=>socioModal(p,x.dataset.soc)));
+    }
+  }
+  const bpl=$("#f_pl",page); if(bpl) bpl.addEventListener("click",()=>planModal(null));
+  const br=$("#f_req",page); if(br) br.addEventListener("click",()=>finModal(null,"request"));
+  const bp=$("#f_pay",page); if(bp) bp.addEventListener("click",()=>finModal(null,"payment"));
+  const bs=$("#f_soci",page); if(bs) bs.addEventListener("click",()=>partnersModal(p));
+  const bw=$("#f_who",page); if(bw) bw.addEventListener("click",()=>settlementModal(p));
+  const bl=$("#f_le",page); if(bl) bl.addEventListener("click",()=>ledgerModal(p));
+  $$("[data-fe]",page).forEach(b=>b.addEventListener("click",()=>{const f=S.fin.find(x=>x.id===b.dataset.fe);if(f)finModal(f,f.kind)}));
+  $$("[data-fd]",page).forEach(b=>b.addEventListener("click",()=>{
+    const f=S.fin.find(x=>x.id===b.dataset.fd); if(!f)return;
+    confirmBox("Elimina voce","Eliminare «"+(f.supplier||f.desc||"voce")+"» ("+VE(f.amount)+")?","Elimina",async()=>{
+      await del(ppath("fin/"+f.id)); await loadProjectData(S.pid); render(); toast("Voce eliminata")})}));
+  $$("[data-ld]",page).forEach(b=>b.addEventListener("click",async()=>{
+    await del(ppath("ledger/"+b.dataset.ld)); await loadProjectData(S.pid); render(); toast("Partita eliminata")}));
+  $$("[data-mk]",page).forEach(b=>b.addEventListener("click",()=>{
+    const f=S.fin.find(x=>x.id===b.dataset.mk); if(f) payRequest(f,p)}));
+}
+
+async function exportPayXlsx(p){
+  if(!S.dl){ toast("Download non disponibile in questa vista",true); return }
+  if(!S.plan.length){ toast("Nessun pagamento pianificato da esportare",true); return }
+  const k=vatK(), iva=vatOn();
+  const m=metrics(p,S.fin,S.tasks);
+  const R=ganttRange(S.tasks,p);
+  const plan=S.plan.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const parts=(p.partners||[]);
+  const qSum=parts.reduce((s,x)=>s+N(x.quota),0)||100;
+  const tot=plan.reduce((s,x)=>s+N(x.amount)*(x.noVat?1:k)*signOf(x),0);
+  const pagato=plan.filter(x=>x.status==="pagato"&&!isIn(x)).reduce((s,x)=>s+N(x.amount)*(x.noVat?1:k),0);
+  const CAT={lavori:"Lavori / cantiere",progetto:"Progetto e permessi",acquisto:"Acquisto immobile",
+    agenzia:"Agenzia / commerciale",finanziari:"Oneri finanziari",altro:"Altro"};
+  /* --- foglio 1: piano pagamenti --- */
+  const weeks=[]; for(let w=0;w<R.weeks;w++) weeks.push(addD(R.start,w*7));
+  const NC=9;
+  const rows=[];
+  const head=[T("PIANO PAGAMENTI",1)]; for(let i=1;i<NC+weeks.length;i++) head.push(T("",1));
+  rows.push(head);
+  const sub=[T(String(p.name||"").toUpperCase()+"  ·  "+String(p.address||p.city||"").toUpperCase(),2)];
+  for(let i=1;i<NC+weeks.length;i++) sub.push(T("",2));
+  rows.push(sub);
+  const sub2=[T("Periodo "+fmtD(iso(R.start))+" – "+fmtD(iso(addD(R.start,R.weeks*7-1)))+
+    "  ·  Importi "+(iva?"con IVA "+vatRate()+"% inclusa":"imponibili")+
+    "  ·  Generato il "+fmtD(iso(new Date())),2)];
+  for(let i=1;i<NC+weeks.length;i++) sub2.push(T("",2));
+  rows.push(sub2);
+  rows.push([]);
+  rows.push([T("FABBISOGNO NETTO",9),T("",9),T("GIÀ PAGATO",9),T("",9),T("DA PAGARE",9),T("",9),T("BUDGET LAVORI",9),T("",9),T("",9)]);
+  rows.push([NUM(Math.round(tot),10),T("",10),NUM(Math.round(pagato),10),T("",10),
+    NUM(Math.round(tot-pagato),10),T("",10),NUM(Math.round(m.works*k),10),T("",10),T("",10)]);
+  rows.push([]);
+  const hdr=[T("VOCE",3),T("FORNITORE",3),T("SETTIMANA",3),T("FINE",3),T("SETT.",3),
+    T("CATEGORIA",3),T("A CARICO DI",3),T("STATO",3),T("IMPORTO",3)];
+  weeks.forEach(d=>hdr.push(T(String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0"),3)));
+  rows.push(hdr);
+  const weekly=new Array(R.weeks).fill(0);
+  plan.forEach(it=>{
+    const wi=weeksBetween(R.start,pd(it.date)||R.start);
+    const span=Math.max(1,N(it.weeks)||1);
+    const amt=N(it.amount)*(it.noVat?1:k)*signOf(it);
+    if(wi>=0&&wi<R.weeks) weekly[wi]+=amt;
+    const who=parts.find(x=>x.id===it.paidBy);
+    const sSt=it.status==="pagato"?11:it.status==="confermato"?12:13;
+    const r=[T((isIn(it)?"+ ":"")+String(it.label||"Pagamento").toUpperCase(),4),T(String(it.supplier||"").toUpperCase(),4),
+      NUM(excelSerial(it.date),7),NUM(excelSerial(iso(addD(pd(it.date)||new Date(),span*7-1))),7),
+      NUM(span,8),T(CAT[it.cat]||"Altro",4),T(who?who.name:"Tutti i soci su quota",4),
+      T(pstatL(it.status,it),sSt),NUM(Math.round(amt),6)];
+    for(let w=0;w<R.weeks;w++) r.push(w>=wi&&w<wi+span?NUM(Math.round(amt/span),14):T("",0));
+    rows.push(r);
+  });
+  const totRow=[T("TOTALE",17),T("",17),T("",17),T("",17),T("",17),T("",17),T("",17),T("",17),NUM(Math.round(tot),15)];
+  for(let w=0;w<R.weeks;w++) totRow.push(weekly[w]?NUM(Math.round(weekly[w]),15):T("",15));
+  rows.push(totRow);
+  const cols=[34,24,13,13,8,22,22,15,16]; weeks.forEach(()=>cols.push(11));
+  const lastCol=colName(NC+weeks.length-1);
+  const sheet1=xsheet(rows,{cols:cols,heights:{0:34,1:18,2:18,6:30},
+    merges:["A1:"+lastCol+"1","A2:"+lastCol+"2","A3:"+lastCol+"3","A5:B5","C5:D5","E5:F5","G5:H5","A6:B6","C6:D6","E6:F6","G6:H6"]});
+  /* --- foglio 2: cassa settimanale --- */
+  const r2=[[T("CASSA SETTIMANALE",1),T("",1),T("",1),T("",1)],
+            [T(String(p.name||"").toUpperCase(),2),T("",2),T("",2),T("",2)],[],
+            [T("SETTIMANA",3),T("USCITE",3),T("CUMULATO",3),T("% SUL PIANO",3)]];
+  let cum=0;
+  weeks.forEach((d,i)=>{ if(!weekly[i]) return; cum+=weekly[i];
+    r2.push([NUM(excelSerial(iso(d)),7),NUM(Math.round(weekly[i]),5),NUM(Math.round(cum),6),
+      NUM(tot?Math.round(cum/tot*1000)/1000:0,16)]) });
+  r2.push([T("TOTALE",17),NUM(Math.round(tot),15),T("",15),T("",15)]);
+  const sheet2=xsheet(r2,{cols:[18,18,18,16],heights:{0:30,1:18},merges:["A1:D1","A2:D2"]});
+  /* --- foglio 3: ripartizione soci --- */
+  const r3=[[T("RIPARTIZIONE PER QUOTE",1),T("",1),T("",1),T("",1),T("",1)],
+            [T("Quanto tocca a ciascun socio sul piano di cassa",2),T("",2),T("",2),T("",2),T("",2)],[],
+            [T("SOCIO",3),T("QUOTA",3),T("SU PIANO",3),T("GIÀ VERSATO",3),T("DIFFERENZA",3)]];
+  parts.forEach(x=>{
+    const versato=S.fin.filter(f=>f.kind==="payment").reduce((s,f)=>s+paidByOf(f,x.id),0)*k;
+    const dovuto=tot*(N(x.quota)/qSum);
+    r3.push([T(x.name,4),NUM(Math.round(N(x.quota)*10)/1000,16),NUM(Math.round(dovuto),5),
+      NUM(Math.round(versato),5),NUM(Math.round(versato-dovuto),6)]);
+  });
+  r3.push([T("TOTALE",17),NUM(Math.round(qSum*10)/1000,16),NUM(Math.round(tot),15),
+    NUM(Math.round(m.paid*k),15),T("",15)]);
+  const sheet3=xsheet(r3,{cols:[28,12,18,18,18],heights:{0:30,1:18},merges:["A1:E1","A2:E2"]});
+  /* --- assemblaggio --- */
+  const ct='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+    '<Default Extension="xml" ContentType="application/xml"/>'+
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
+    '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+
+    '<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+
+    '<Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+  const rels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+  const wb='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '+
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'+
+    '<sheet name="Piano pagamenti" sheetId="1" r:id="rId1"/>'+
+    '<sheet name="Cassa settimanale" sheetId="2" r:id="rId2"/>'+
+    '<sheet name="Ripartizione soci" sheetId="3" r:id="rId3"/></sheets></workbook>';
+  const wbr='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'+
+    '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>'+
+    '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/>'+
+    '<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
+  const blob=zipStore([
+    {name:"[Content_Types].xml",data:ct},
+    {name:"_rels/.rels",data:rels},
+    {name:"xl/workbook.xml",data:wb},
+    {name:"xl/_rels/workbook.xml.rels",data:wbr},
+    {name:"xl/styles.xml",data:XSTYLES},
+    {name:"xl/worksheets/sheet1.xml",data:sheet1},
+    {name:"xl/worksheets/sheet2.xml",data:sheet2},
+    {name:"xl/worksheets/sheet3.xml",data:sheet3}
+  ]);
+  const fn="piano-pagamenti-"+String(p.name||"progetto").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".xlsx";
+  try{ await S.dl.save({filename:fn,data:blob}); toast("Excel salvato") }
+  catch(e){ if(!e||e.code!=="declined") toast("Export non riuscito"+(e&&e.code?" ("+e.code+")":""),true) }
+}
+
+
+/* ======================================================================
+   v19 — la ricorrenza mensile si imposta e si corregge anche dopo:
+          «per quanti mesi» aggiunge o toglie le rate della stessa riga
+   ====================================================================== */
+function planModal(it){
+  const p=P(); const isNew=!it;
+  const parts=(p.partners||[]).map(x=>[x.id,x.name+" ("+pct(N(x.quota),0)+")"]);
+  const sib=it&&it.recId?(S.plan||[]).filter(x=>x.recId===it.recId):[];
+  const st={dir:(it&&it.inflow)?"in":"out"};
+  const b=el("div");
+  b.innerHTML=
+    '<div class="seg2" id="q_dir" style="margin-bottom:14px">'+
+      '<button type="button" data-d="out"'+(st.dir==="out"?' class="on"':'')+'>Uscita</button>'+
+      '<button type="button" data-d="in"'+(st.dir==="in"?' class="on inflow"':'')+'>Entrata (mutuo, incasso)</button>'+
+    '</div>'+
+    (it&&it.recId?'<div class="notice" style="margin-bottom:14px">'+IC.ref+
+      '<div>Rata <b>'+(N(it.recIdx)||1)+' di '+Math.max(sib.length,N(it.recTot)||1)+'</b> di una serie mensile · '+sib.length+' rate presenti nel piano.'+(sib.length<(N(it.recTot)||1)?' <b style=\"color:var(--warn)\">Ne mancano '+((N(it.recTot)||1)-sib.length)+': correggi «Per quanti mesi» qui sotto e salva.</b>':'')+'</div></div>':'')+
+    '<div class="f2">'+fld("q_lab","Voce","text",it?it.label:"","placeholder=\"es. 2° SAL impresa\"")+
+      fld("q_sup","Fornitore","text",it?it.supplier:"")+'</div>'+
+    '<div class="f3">'+fld("q_amt","Importo €","number",it?it.amount:"",'step="100"')+
+      fld("q_date","Settimana di pagamento","date",it?it.date:iso(monday(new Date())))+
+      fld("q_wk","Durata (settimane)","number",it?(N(it.weeks)||1):1,'min="1" max="26"')+'</div>'+
+    '<div class="f2">'+sel("q_st","Stato",it?it.status:"previsto",PSTAT)+
+      (parts.length?sel("q_by","A carico di / pagato da",it?it.paidBy:"",[["","Tutti i soci su quota"]].concat(parts))
+        :'<div class="field"><label>A carico di</label><input class="inp" disabled value="Nessun socio configurato"></div>')+'</div>'+
+    sel("q_cat","Voce di costo",it?it.cat:"lavori",[["lavori","Lavori / cantiere"],["progetto","Progetto e permessi"],
+      ["acquisto","Acquisto immobile"],["agenzia","Agenzia / commerciale"],["finanziari","Oneri finanziari"],["altro","Altro"]])+
+    fld("q_note","Note","textarea",it?it.note:"")+
+    '<label class="perm" style="margin-top:4px"><input type="checkbox" id="q_novat" data-nocase'+((it&&it.noVat)?" checked":"")+'>'+
+      '<span class="t">Voce non soggetta a IVA'+
+      '<span class="dim" style="display:block;font-weight:500">Oneri di urbanizzazione, bolli, imposte: resta a questo importo anche con lo switch «+ IVA» attivo.</span></span></label>'+
+    '<label class="perm" style="margin-top:6px"><input type="checkbox" id="q_rec" data-nocase'+((it&&it.recId)?" checked":"")+'>'+
+      '<span class="t">Pagamento mensile ricorrente<span class="dim" style="display:block;font-weight:500">'+
+      'Rata del finanziamento, canoni, utenze: una rata al mese, tutte sulla stessa riga della timeline. '+
+      'Cambiando il numero di mesi le rate vengono aggiunte o tolte.</span></span></label>'+
+      '<div id="q_recbox" class="'+((it&&it.recId)?"":"hide")+'" style="margin-top:6px">'+
+      '<div class="f2">'+fld("q_recn","Per quanti mesi","number",(it&&it.recId)?Math.max(1,sib.length):12,'min="1" max="120"')+
+        '<div class="field"><label>Totale della serie</label><input class="inp" id="q_rectot" disabled value="—"></div>'+
+      '</div></div>'+
+    (it&&it.recId?'<label class="perm" style="margin-top:6px"><input type="checkbox" id="q_all" data-nocase>'+
+      '<span class="t">Applica a questa rata e a tutte le successive'+
+      '<span class="dim" style="display:block;font-weight:500">Le date restano quelle di ciascuna rata; cambiano importo, voce, stato e note.</span></span></label>':'')+
+    (it&&it.status!=="pagato"?'<label class="perm" id="q_mkw" style="margin-top:4px"><input type="checkbox" id="q_mk">'+
+      '<span class="t">Segna come pagato e registralo nei pagamenti effettuati</span></label>':'');
+
+  const refreshRec=()=>{
+    const box=$("#q_recbox",b), ck=$("#q_rec",b);
+    if(!box||!ck) return;
+    box.classList.toggle("hide",!ck.checked);
+    const n=clamp(N($("#q_recn",b).value)||12,1,120);
+    const tot=$("#q_rectot",b);
+    if(tot) tot.value=ck.checked?(n+" rate × "+eur0(N($("#q_amt",b).value))+" = "+eur0(n*N($("#q_amt",b).value))):"—";
+  };
+  const syncDir=()=>{
+    const inflow=st.dir==="in";
+    $$("#q_dir button",b).forEach(x=>{ x.className=(x.dataset.d===st.dir)?(inflow?"on inflow":"on"):"" });
+    const se=$("#q_st",b);
+    if(se){ const op=Array.prototype.slice.call(se.options).find(x=>x.value==="pagato"); if(op) op.textContent=inflow?"Incassato":"Pagato" }
+    const mk=$("#q_mkw",b); if(mk) mk.classList.toggle("hide",inflow);
+    const am=$("#q_amt",b); if(am&&am.previousElementSibling) am.previousElementSibling.textContent=inflow?"Importo € (entrata)":"Importo €";
+    const nv=$("#q_novat",b); if(nv&&inflow) nv.checked=false;
+    const ca=$("#q_cat",b); if(ca&&ca.previousElementSibling) ca.previousElementSibling.textContent=inflow?"Categoria":"Voce di costo";
+  };
+  $$("#q_dir button",b).forEach(bt=>bt.addEventListener("click",()=>{ st.dir=bt.dataset.d; syncDir() }));
+  syncDir();
+  const rc=$("#q_rec",b); if(rc) rc.addEventListener("change",refreshRec);
+  const rn=$("#q_recn",b); if(rn) rn.addEventListener("input",refreshRec);
+  const ra=$("#q_amt",b); if(ra) ra.addEventListener("input",refreshRec);
+
+  const readForm=body=>({
+    label:$("#q_lab",body).value.trim(),supplier:$("#q_sup",body).value.trim(),
+    amount:N($("#q_amt",body).value),
+    weeks:clamp(N($("#q_wk",body).value)||1,1,26),
+    paidBy:$("#q_by",body)?$("#q_by",body).value:"",
+    cat:$("#q_cat",body).value,note:$("#q_note",body).value.trim(),
+    inflow:st.dir==="in",
+    noVat:!!($("#q_novat",body)&&$("#q_novat",body).checked)
+  });
+
+  modal({title:isNew?"Nuova voce di cassa":"Modifica voce di cassa",wide:true,
+    ok:isNew?"Aggiungi al piano":"Salva",body:b,
+    danger:isNew?null:"Elimina",
+    onDelete:async(body)=>{
+      const all=$("#q_all",body)&&$("#q_all",body).checked;
+      const targets=all&&it.recId
+        ?(S.plan||[]).filter(x=>x.recId===it.recId&&(N(x.recIdx)||0)>=(N(it.recIdx)||0))
+        :[it];
+      for(const t of targets) await del(ppath("plan/"+t.id));
+      await loadProjectData(S.pid); render();
+      toast(targets.length>1?(targets.length+" rate eliminate"):"Eliminato");
+      return true;
+    },
+    onOk:async(body)=>{
+      const f=readForm(body);
+      if(!f.amount){toast("Inserisci l'importo",true);return false}
+      const mk=$("#q_mk",body)&&$("#q_mk",body).checked;
+      const stato=mk?"pagato":$("#q_st",body).value;
+      const draw=pd($("#q_date",body).value)||new Date();
+      const d0=monday(draw);
+      const base=Object.assign({},f,{date:iso(d0),status:stato});
+
+      /* nuova serie mensile */
+      const recOn=isNew&&$("#q_rec",body)&&$("#q_rec",body).checked&&clamp(N($("#q_recn",body).value)||12,1,120)>1;
+      if(recOn){
+        const n=clamp(N($("#q_recn",body).value)||12,2,120);
+        const rid=uid("rec");
+        for(let k=0;k<n;k++){
+          const row=Object.assign({},base,{date:iso(payWeek(addMonthsKeep(draw,k))),
+            recId:rid,recIdx:k+1,recTot:n,
+            status:k===0?stato:(stato==="pagato"?"confermato":stato)});
+          if(!await put(ppath("plan/"+uid("q")),row)) return false;
+        }
+        await loadProjectData(S.pid); render();
+        toast(n+(st.dir==="in"?" entrate mensili pianificate · ":" rate mensili pianificate · ")+eur0(n*f.amount)+" in totale");
+        return true;
+      }
+
+      /* --- voce nuova, singola --- */
+      if(isNew){
+        if(!await put(ppath("plan/"+uid("q")),base)) return false;
+        await loadProjectData(S.pid); render();
+        toast(st.dir==="in"?"Entrata pianificata":"Pagamento pianificato");
+        return true;
+      }
+
+      /* --- modifica di una voce esistente --- */
+      const all=$("#q_all",body)&&$("#q_all",body).checked&&it.recId;
+      let msg="Piano aggiornato";
+      if(all){
+        const targets=(S.plan||[]).filter(x=>x.recId===it.recId&&(N(x.recIdx)||0)>=(N(it.recIdx)||0));
+        for(const t of targets){
+          const upd=Object.assign({},f,{status:stato,date:t.id===it.id?base.date:(t.date||base.date)});
+          if(!await patch(ppath("plan/"+t.id),upd)) return false;
+        }
+        msg=targets.length+" rate aggiornate";
+      } else {
+        if(!await patch(ppath("plan/"+it.id),base)) return false;
+      }
+
+      /* allinea la lunghezza della serie mensile */
+      const recWant=$("#q_rec",body)&&$("#q_rec",body).checked;
+      if(recWant){
+        const nWant=clamp(N($("#q_recn",body).value)||1,1,120);
+        const rid=it.recId||uid("rec");
+        let serie=it.recId?(S.plan||[]).filter(x=>x.recId===it.recId).slice()
+                          :[Object.assign({},it,base)];
+        serie.sort((a,b)=>((N(a.recIdx)||0)-(N(b.recIdx)||0))||String(a.date||"").localeCompare(String(b.date||"")));
+        const fdate=pd((serie[0]||base).date)||draw;
+        for(let k=serie.length;k<nWant;k++){
+          const row=Object.assign({},f,{date:iso(payWeek(addMonthsKeep(fdate,k))),
+            status:stato==="pagato"?"confermato":stato,recId:rid,recIdx:k+1,recTot:nWant});
+          if(!await put(ppath("plan/"+uid("q")),row)) return false;
+        }
+        for(let k=nWant;k<serie.length;k++) await del(ppath("plan/"+serie[k].id));
+        const keep=serie.slice(0,Math.min(nWant,serie.length));
+        for(let i2=0;i2<keep.length;i2++)
+          await patch(ppath("plan/"+keep[i2].id),{recId:rid,recIdx:i2+1,recTot:nWant});
+        msg=nWant>1?(nWant+(st.dir==="in"?" entrate mensili nel piano":" rate mensili nel piano"))
+                   :"Ricorrenza impostata su una sola rata";
+      } else if(it.recId){
+        const others=(S.plan||[]).filter(x=>x.recId===it.recId&&x.id!==it.id);
+        for(const o of others) await del(ppath("plan/"+o.id));
+        await patch(ppath("plan/"+it.id),{recId:"",recIdx:0,recTot:0});
+        msg="Ricorrenza rimossa, resta una voce singola";
+      }
+
+      if(mk){
+        await put(ppath("fin/"+uid("f")),{kind:"payment",supplier:base.supplier,desc:base.label||"Pagamento da piano",
+          amount:base.amount,date:iso(new Date()),method:"bonifico",paidBy:base.paidBy,cat:base.cat,by:S.me.id,noVat:!!base.noVat});
+      }
+      await loadProjectData(S.pid); render(); toast(msg); return true;
+    }});
+}
+
+const APP_VER="v19 · 21.10.2026";
 
 /* ========================= INIT ========================= */
 const th=lsGet("repjt.theme"); document.documentElement.setAttribute("data-theme",th||"dark");
