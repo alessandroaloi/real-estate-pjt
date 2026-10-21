@@ -9177,7 +9177,356 @@ function planModal(it){
     }});
 }
 
-const APP_VER="v20 · 21.10.2026";
+
+/* ======================================================================
+   v21 — i conti tra soci rispettano il flag "non soggetta a IVA":
+          i saldi si calcolano sulla cassa reale di ogni pagamento,
+          e le partite dirette fra soci non vengono mai ricalcolate
+   ====================================================================== */
+function ledgerBalances(p,fin,ledger){
+  const partners=(p.partners||[]);
+  const map={}; partners.forEach(x=>map[x.id]={id:x.id,name:x.name,quota:N(x.quota),paid:0,manual:0});
+  (fin||[]).filter(f=>f.kind==="payment").forEach(f=>{
+    const kf=vatKi(f);
+    paidSplit(f).forEach(x=>{ if(map[x.id]) map[x.id].paid+=N(x.amount)*kf });
+  });
+  (ledger||[]).forEach(l=>{
+    if(l.from&&map[l.from]) map[l.from].manual+=N(l.amount);
+    if(l.to&&map[l.to]) map[l.to].manual-=N(l.amount);
+  });
+  const totalPaid=Object.values(map).reduce((s,x)=>s+x.paid,0);
+  const qSum=Object.values(map).reduce((s,x)=>s+x.quota,0)||100;
+  Object.values(map).forEach(x=>{ x.due=totalPaid*(x.quota/qSum); x.balance=x.paid-x.due+x.manual });
+  return {rows:Object.values(map),totalPaid:totalPaid,quotaSum:qSum};
+}
+
+function payerChips(f,p){
+  const sp=paidSplit(f);
+  if(!sp.length) return '<span class="dim">—</span>';
+  const parts=(p&&p.partners)||[];
+  if(sp.length>2) return '<span class="chip acc">'+sp.length+' soci</span>';
+  return sp.map(x=>{ const w=parts.find(z=>z.id===x.id);
+    return '<span class="chip acc" style="margin-right:3px">'+esc(w?w.name:"—")+
+      (sp.length>1?' <span style="opacity:.75">'+VI(x.amount,f)+'</span>':'')+'</span>' }).join("");
+}
+
+function socioMovements(p,sid){
+  const parts=(p.partners||[]);
+  const qSum=parts.reduce((s,x)=>s+N(x.quota),0)||100;
+  const me=parts.find(x=>x.id===sid); if(!me) return [];
+  const q=N(me.quota)/qSum;
+  const out=[];
+  (S.fin||[]).filter(f=>f.kind==="payment").forEach(f=>{
+    const kf=vatKi(f);
+    const mine=paidByOf(f,sid)*kf;
+    const due=N(f.amount)*kf*q;
+    if(Math.abs(mine)<0.005&&Math.abs(due)<0.005) return;
+    out.push({date:f.date||"",kind:"pay",title:(f.supplier||f.desc||"Pagamento"),desc:f.desc||"",
+      total:N(f.amount)*kf,mine:mine,due:due,eff:mine-due,noVat:!!f.noVat,
+      payers:paidSplit(f).map(x=>({id:x.id,amount:N(x.amount)*kf}))});
+  });
+  (S.ledger||[]).forEach(l=>{
+    const isSettle=l.kind==="settle";
+    if(l.from===sid) out.push({date:l.date||"",kind:isSettle?"settle-out":"led-out",
+      title:isSettle?("Rimborso a "+nameOf(p,l.to)):("Anticipo per "+nameOf(p,l.to)),
+      desc:l.desc||"",total:N(l.amount),mine:N(l.amount),due:0,eff:N(l.amount)});
+    else if(l.to===sid) out.push({date:l.date||"",kind:isSettle?"settle-in":"led-in",
+      title:isSettle?("Rimborso da "+nameOf(p,l.from)):("Anticipo ricevuto da "+nameOf(p,l.from)),
+      desc:l.desc||"",total:N(l.amount),mine:0,due:N(l.amount),eff:-N(l.amount)});
+  });
+  return out.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+}
+
+function mvLine(p,m,sid){
+  const pos=m.eff>=0;
+  let spiega="";
+  if(m.kind==="pay"){
+    const altri=(m.payers||[]).filter(x=>x.id!==sid);
+    if(m.mine>0.005&&m.eff>0.5)
+      spiega="Hai pagato "+eur0(m.mine)+" · la tua quota era "+eur0(m.due)+" → hai anticipato "+eur0(m.eff)+" per gli altri soci.";
+    else if(m.mine>0.005&&m.eff<-0.5)
+      spiega="Hai pagato "+eur0(m.mine)+" ma la tua quota era "+eur0(m.due)+" → devi ancora "+eur0(-m.eff)+".";
+    else if(m.mine>0.005)
+      spiega="Hai pagato esattamente la tua quota ("+eur0(m.due)+").";
+    else
+      spiega="Pagato da "+(altri.length?altri.map(x=>nameOf(p,x.id)).join(", "):"altri")+
+        " · la tua quota su "+eur0(m.total)+" è "+eur0(m.due)+" → sei in debito di "+eur0(m.due)+".";
+  } else if(m.kind==="led-out") spiega="Hai anticipato "+eur0(m.total)+" per suo conto → te li deve restituire.";
+  else if(m.kind==="led-in") spiega="Ha anticipato "+eur0(m.total)+" per te → glieli devi restituire.";
+  else if(m.kind==="settle-out") spiega="Hai rimborsato "+eur0(m.total)+" → il conto si chiude di pari importo.";
+  else spiega="Hai ricevuto "+eur0(m.total)+" a saldo → il conto si chiude di pari importo.";
+  return '<div class="mv">'+
+    '<div class="mv-h"><span class="mv-d">'+fmtD(m.date)+'</span>'+
+      '<span class="mv-t">'+esc(m.title)+(m.noVat?' <span class="novat">no iva</span>':'')+'</span>'+
+      '<span class="mv-e" style="color:'+(pos?"var(--good)":"var(--bad)")+'">'+(pos?"+":"−")+eur0(Math.abs(m.eff))+'</span></div>'+
+    '<div class="mv-b">'+esc(spiega)+(m.desc&&m.kind==="pay"?' <span class="dim">· '+esc(m.desc)+'</span>':'')+'</div>'+
+    '</div>';
+}
+
+function socioModal(p,sid){
+  const lb=ledgerBalances(p,S.fin,S.ledger);
+  const r=lb.rows.find(x=>x.id===sid); if(!r) return;
+  const mv=socioMovements(p,sid);
+  const st=settlements(lb.rows).filter(s=>s.from===sid||s.to===sid);
+  const tone=r.balance>1?"good":r.balance<-1?"bad":"";
+  const b=el("div");
+  b.innerHTML=
+    '<div class="pgrp" style="background:var(--surface);border-color:var(--line)">'+
+      '<div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">'+
+        '<div class="row" style="gap:10px;flex-wrap:nowrap"><span class="av">'+esc(initials(r.name))+'</span>'+
+          '<div><div style="font-size:15px;font-weight:800;letter-spacing:-.02em">'+esc(r.name)+'</div>'+
+          '<div class="dim" style="font-size:11.5px">quota '+pct(r.quota,N(r.quota)%1?2:0)+' dell\'operazione</div></div></div>'+
+        '<div style="text-align:right"><div class="eyebrow">Saldo</div>'+
+          '<div style="font-size:21px;font-weight:800;letter-spacing:-.035em;color:'+
+            (r.balance>1?"var(--good)":r.balance<-1?"var(--bad)":"var(--ink-3)")+'">'+
+            (r.balance>1?"+":r.balance<-1?"−":"")+eur0(Math.abs(r.balance))+'</div>'+
+          '<span class="chip '+tone+'">'+(r.balance>1?"a credito":r.balance<-1?"a debito":"in pari")+'</span></div>'+
+      '</div></div>'+
+    '<div class="grid g3" style="gap:8px;margin-bottom:14px">'+
+      '<div class="pgrp" style="margin:0"><div class="eyebrow">Versato</div><div style="font-size:15px;font-weight:800">'+eur0(r.paid)+'</div></div>'+
+      '<div class="pgrp" style="margin:0"><div class="eyebrow">Dovuto su quota</div><div style="font-size:15px;font-weight:800">'+eur0(r.due)+'</div></div>'+
+      '<div class="pgrp" style="margin:0"><div class="eyebrow">Partite dirette</div><div style="font-size:15px;font-weight:800">'+eur0(r.manual)+'</div></div>'+
+    '</div>'+
+    (st.length?'<div class="eyebrow" style="margin-bottom:8px">Per chiudere il conto</div>'+
+      st.map(s=>'<div class="setrow"><span class="who">'+esc(s.fromName)+'</span>'+
+        '<span class="arr">'+IC.chev+'</span><span class="who">'+esc(s.toName)+'</span>'+
+        '<span class="amt">'+eur0(s.amount)+'</span></div>').join("")+
+      '<div style="height:14px"></div>':'')+
+    '<div class="eyebrow" style="margin-bottom:8px">Movimenti che compongono il saldo ('+mv.length+')</div>'+
+    (mv.length?mv.map(m=>mvLine(p,m,sid)).join("")
+      :'<div class="dim" style="font-size:12.5px">Nessun movimento registrato per questo socio.</div>')+
+    '<p class="dim" style="font-size:11.5px;margin-top:12px">Ogni pagamento viene diviso fra i soci in base alle quote: '+
+    'chi versa più della propria quota va a credito, chi versa meno va a debito.</p>';
+  modal({title:"Conto di "+r.name,wide:true,body:b,ok:null,cancel:"Chiudi"});
+}
+
+function settlementModal(p){
+  const lb=ledgerBalances(p,S.fin,S.ledger);
+  const st=settlements(lb.rows);
+  const b=el("div");
+  const draw=()=>{
+    b.innerHTML='<p class="muted" style="font-size:12.5px;margin-bottom:14px">Il numero minimo di bonifici per azzerare tutti i saldi. '+
+      'Registrando un rimborso il conto si aggiorna da solo.</p>'+
+      (st.length?st.map((s,i)=>'<div class="setrow big">'+
+          '<span class="who">'+esc(s.fromName)+'</span><span class="arr">'+IC.chev+'</span>'+
+          '<span class="who">'+esc(s.toName)+'</span><span class="amt">'+eur0(s.amount)+'</span>'+
+          (canWrite()?'<button class="btn btn-xs" data-set="'+i+'">Registra rimborso</button>':'')+
+        '</div>').join("")
+        :'<div class="empty"><div class="big">Conti in pari</div>Nessun socio deve nulla agli altri.</div>')+
+      '<div class="eyebrow" style="margin:16px 0 8px">Saldi attuali</div>'+
+      lb.rows.map(r=>'<div class="split"><span class="l"><b style="color:var(--ink)">'+esc(r.name)+'</b> '+
+        '<span class="dim mono" style="font-size:11px">quota '+pct(r.quota,N(r.quota)%1?2:0)+'</span></span>'+
+        '<span class="v" style="color:'+(r.balance>1?"var(--good)":r.balance<-1?"var(--bad)":"var(--ink-3)")+'">'+
+        (r.balance>1?"a credito ":r.balance<-1?"a debito ":"in pari ")+eur0(Math.abs(r.balance))+'</span></div>').join("");
+    $$("[data-set]",b).forEach(btn=>btn.addEventListener("click",()=>settleModal(p,st[parseInt(btn.dataset.set,10)])));
+  };
+  draw();
+  modal({title:"Chi deve a chi",wide:true,body:b,ok:null,cancel:"Chiudi"});
+}
+
+function ledgerModal(p){
+  const parts=(p.partners||[]).map(x=>[x.id,x.name]);
+  if(parts.length<2){ toast("Servono almeno due soci per registrare una partita",true); return }
+  const b=el("div");
+  b.innerHTML='<p class="muted" style="font-size:12.5px;margin-bottom:14px">Registra un esborso fatto da un socio per conto di un altro. '+
+    'Scrivi la cifra realmente uscita dal conto: le partite tra soci non vengono mai ricalcolate dallo switch «+ IVA».</p>'+
+    '<div class="f2">'+sel("l_from","Ha pagato",(parts[0]||[""])[0],parts)+sel("l_to","Per conto di",(parts[1]||[""])[0],parts)+'</div>'+
+    '<div class="f2">'+fld("l_amt","Importo €","number","",'step="0.01"')+fld("l_date","Data","date",iso(new Date()))+'</div>'+
+    fld("l_desc","Descrizione","text","","placeholder=\"es. anticipo impresa\"");
+  modal({title:"Nuova partita tra soci",body:b,ok:"Registra",onOk:async(body)=>{
+    const from=$("#l_from",body).value,to=$("#l_to",body).value,amt=N($("#l_amt",body).value);
+    if(from===to){toast("Seleziona due soci differenti",true);return false}
+    if(!amt){toast("Inserisci l'importo",true);return false}
+    if(!await put(ppath("ledger/"+uid("l")),{from:from,to:to,amount:amt,date:$("#l_date",body).value||iso(new Date()),
+      desc:$("#l_desc",body).value.trim(),by:S.me.id})) return false;
+    await loadProjectData(S.pid); render(); toast("Partita registrata"); return true;
+  }});
+}
+
+function viewFinance(sc,p){
+  const m=metrics(p,S.fin,S.tasks);
+  const lb=ledgerBalances(p,S.fin,S.ledger);
+  const reqs=S.fin.filter(f=>f.kind==="request");
+  const pays=S.fin.filter(f=>f.kind==="payment");
+  const planOut=outSum(S.plan), planIn=inSum(S.plan), planNet=planOut-planIn;
+  const planTot=planOut;
+  const planPaid=outSum(S.plan.filter(x=>x.status==="pagato"));
+  const paidV=vatSum(pays);
+  const worksV=N(m.works)*vatK();
+  let kpis="";
+  if(canF("f_budget")) kpis+=kpi("Budget lavori",VE(m.works),IC.scale,"da scheda progetto","");
+  if(canF("f_pay")) kpis+=kpi("Pagato",eur0(paidV),IC.euro,pct(m.spentPct,0)+" del budget",m.spentPct>100?"bad":"acc");
+  if(canF("f_req")) kpis+=kpi("Richieste aperte",VE(m.reqOpen),IC.doc,reqs.filter(r=>r.status!=="paid").length+" documenti","info");
+  if(canF("f_plan")) kpis+=kpi("Piano pagamenti",eur0(planTot),IC.cal,planIn?("netto "+eurSigned(planNet)+" dopo le entrate"):(eur0(planTot-planPaid)+" ancora da pagare"),"warn");
+  if(canF("f_budget")) kpis+=kpi("Residuo budget",eur0(worksV-paidV),IC.wallet,(m.works-m.paid)<0?"budget superato":"disponibile",(m.works-m.paid)<0?"bad":"good");
+  const page=el("div","page");
+  page.innerHTML='<div class="page-head"><div><h1>Finance</h1>'+
+    '<div class="sub">Richieste fornitori, pagamenti, piano di cassa e partite tra soci</div></div><div class="sp"></div>'+
+    (canWrite()?'<div class="row">'+
+      (canF("f_plan")?'<button class="btn btn-sm" id="f_pl">'+IC.plus+'Pagamento previsto</button>':'')+
+      (canF("f_req")?'<button class="btn btn-sm" id="f_req">'+IC.plus+'Richiesta</button>':'')+
+      (canF("f_pay")?'<button class="btn btn-pri btn-sm" id="f_pay">'+IC.plus+'Pagamento</button>':'')+
+      '</div>':'')+'</div>'+
+    '<div class="grid g4" style="margin-bottom:12px">'+kpis+'</div>'+
+    (canF("f_plan")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Timeline pagamenti</h3>'+
+      '<div class="sp"></div><span class="chip acc">'+eur0(planTot)+'</span>'+
+      (planIn?'<span class="chip good">+ '+eur0(planIn)+'</span>':'')+
+      '<button class="btn btn-sm" id="pl_today">Oggi</button>'+
+      '<button class="btn btn-sm" id="pl_xls">'+IC.dl+'Excel</button></div>'+
+      '<div id="pay-host"></div></div>'+
+      '<div class="grid g2" style="margin-bottom:12px"><div class="card"><div class="card-h"><h3>Totali piano di cassa</h3></div>'+
+      '<div class="card-p" id="pl_tot"></div></div>'+
+      '<div class="card"><div class="card-h"><h3>Ripartizione per quote</h3><div class="sp"></div>'+
+      (canWrite()?'<button class="btn btn-sm" id="f_soci2">Soci e quote</button>':'')+'</div>'+
+      '<div class="card-p" id="pl_split"></div></div></div>':'')+
+    (canF("f_req")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Richieste di pagamento</h3><div class="sp"></div>'+
+      '<span class="chip">'+reqs.length+'</span></div><div class="tbl-wrap"><table class="tbl resp"><thead><tr>'+
+      '<th>Fornitore</th><th>Descrizione</th><th>Data</th><th>Scadenza</th><th class="r">Importo</th><th>Stato</th><th></th>'+
+      '</tr></thead><tbody id="rq"></tbody></table></div></div>':'')+
+    (canF("f_pay")?'<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>Pagamenti effettuati</h3><div class="sp"></div>'+
+      '<span class="chip">'+pays.length+'</span></div><div class="tbl-wrap"><table class="tbl resp"><thead><tr>'+
+      '<th>Data</th><th>Fornitore</th><th>Descrizione</th><th>Pagato da</th><th>Modalità</th><th class="r">Importo</th><th></th>'+
+      '</tr></thead><tbody id="pb"></tbody></table></div></div>':'')+
+    (canF("f_ledger")||canF("f_quotas")?'<div class="grid g21">'+
+      (canF("f_ledger")?'<div class="card"><div class="card-h"><h3>Conti tra soci</h3><div class="sp"></div>'+
+        (canWrite()?'<button class="btn btn-sm" id="f_soci">Soci e quote</button>'+
+        '<button class="btn btn-sm" id="f_le">'+IC.plus+'Partita</button>':'')+'</div>'+
+        '<div class="tbl-wrap"><table class="tbl resp"><thead><tr><th>Data</th><th>Ha pagato</th><th>Per conto di</th>'+
+        '<th>Descrizione</th><th class="r">Importo</th><th></th></tr></thead><tbody id="lg"></tbody></table></div></div>':'')+
+      (canF("f_quotas")?'<div class="card"><div class="card-h"><h3>Saldi</h3><div class="sp"></div>'+
+        '<button class="btn btn-sm" id="f_who">Chi deve a chi</button></div><div class="card-p" id="bal"></div></div>':'')+
+    '</div>':'');
+  sc.innerHTML=""; sc.appendChild(page);
+
+  if(canF("f_plan")){
+    drawPayGantt($("#pay-host",page),p);
+    const tp=$("#pl_today",page); if(tp) tp.addEventListener("click",()=>scrollToToday(page,ganttRange(S.tasks,p),"pay"));
+    const xb=$("#pl_xls",page); if(xb) xb.addEventListener("click",async()=>{
+      xb.disabled=true; const o=xb.innerHTML; xb.textContent="Genero…";
+      await exportPayXlsx(p); xb.disabled=false; xb.innerHTML=o; });
+    const residuo=planTot-planPaid;
+    $("#pl_tot",page).innerHTML=
+      '<div class="split"><span class="l">Uscite pianificate ('+S.plan.filter(x=>!isIn(x)).length+')</span><span class="v">'+eur0(planOut)+'</span></div>'+
+      (planIn?'<div class="split"><span class="l">Entrate previste ('+S.plan.filter(isIn).length+')</span>'+
+        '<span class="v" style="color:var(--good)">+ '+eur0(planIn)+'</span></div>'+
+        '<div class="split tot"><span class="l">Fabbisogno netto di cassa</span><span class="v">'+eurSigned(planNet)+'</span></div>':'')+
+      '<div class="split"><span class="l">Già pagati</span><span class="v" style="color:var(--good)">'+eur0(planPaid)+'</span></div>'+
+      '<div class="split"><span class="l">Ancora da pagare</span><span class="v" style="color:var(--warn)">'+eur0(residuo)+'</span></div>'+
+      (canF("f_budget")?'<div class="split"><span class="l">Budget lavori</span><span class="v">'+VE(m.works)+'</span></div>'+
+       '<div class="split tot"><span class="l">Scostamento piano / budget</span><span class="v" style="color:'+
+       ((planTot-m.works)>0?"var(--bad)":"var(--good)")+'">'+eur0(planTot-worksV)+'</span></div>':'')+
+      '<div style="margin-top:12px"><div class="row" style="justify-content:space-between;margin-bottom:6px">'+
+      '<span class="eyebrow">Avanzamento piano</span><span class="mono" style="font-size:11.5px;font-weight:700">'+
+      pct(planTot?planPaid/planTot*100:0,0)+'</span></div><div class="bar good" style="height:9px"><i style="width:'+
+      clamp(planTot?planPaid/planTot*100:0,0,100)+'%"></i></div></div>';
+    const parts=(p.partners||[]);
+    const qs=parts.reduce((s,x)=>s+N(x.quota),0)||100;
+    $("#pl_split",page).innerHTML= parts.length?
+      '<p class="dim" style="font-size:11.5px;margin-bottom:10px">Quanto tocca a ciascun socio sul fabbisogno netto di cassa (uscite meno entrate), in base alle quote.</p>'+
+      '<table class="tbl" style="font-size:12.5px"><thead><tr><th style="padding-left:0">Socio</th><th class="r">Quota</th>'+
+      '<th class="r">Su piano</th><th class="r" style="padding-right:0">Già versato</th></tr></thead><tbody>'+
+      parts.map(x=>{
+        const versato=pays.reduce((s,f)=>s+paidByOf(f,x.id)*vatKi(f),0);
+        const dovuto=planNet*(N(x.quota)/qs);
+        return '<tr><td style="padding-left:0"><b>'+esc(x.name)+'</b></td><td class="r">'+pct(N(x.quota),1)+'</td>'+
+          '<td class="r" style="font-weight:700">'+eurSigned(dovuto)+'</td>'+
+          '<td class="r" style="padding-right:0;color:'+(versato>=dovuto?"var(--good)":"var(--ink-2)")+'">'+eur0(versato)+'</td></tr>'}).join("")+
+      '<tr><td style="padding-left:0;font-weight:700">Totale</td><td class="r">'+pct(qs,1)+'</td>'+
+      '<td class="r" style="font-weight:800">'+eurSigned(planNet)+'</td><td class="r" style="padding-right:0;font-weight:700">'+eur0(paidV)+'</td></tr>'+
+      '</tbody></table>'
+      :'<div class="dim" style="font-size:12.5px">Nessun socio configurato: aggiungili dalla scheda progetto o dal pulsante «Soci e quote».</div>';
+    const s2=$("#f_soci2",page); if(s2) s2.addEventListener("click",()=>partnersModal(p));
+  }
+
+  const rq=$("#rq",page);
+  if(rq){
+    if(!reqs.length) rq.innerHTML='<tr><td colspan="7"><div class="empty">Nessuna richiesta registrata.</div></td></tr>';
+    reqs.forEach(f=>{
+      const overdue=f.status!=="paid"&&f.due&&f.due<iso(new Date());
+      const tr=el("tr");
+      tr.innerHTML='<td class="hd"><b>'+esc(f.supplier||"—")+'</b></td><td data-l="Descrizione" class="muted">'+esc(f.desc||"")+'</td>'+
+        '<td data-l="Data" class="mono" style="font-size:12px">'+fmtD(f.date)+'</td>'+
+        '<td data-l="Scadenza" class="mono" style="font-size:12px'+(overdue?';color:var(--bad);font-weight:700':'')+'">'+(f.due?fmtD(f.due):"—")+'</td>'+
+        '<td data-l="Importo" class="r" style="font-weight:700">'+VI(f.amount,f)+(f.noVat?' <span class="novat">no iva</span>':'')+'</td>'+
+        '<td data-l="Stato"><span class="chip '+fstatChip(f.status)+'">'+esc(fstatLabel(f.status))+'</span></td>'+
+        '<td class="r act-cell"><span class="act row" style="justify-content:flex-end;gap:4px">'+
+        (canWrite()&&f.status!=="paid"?'<button class="btn btn-xs" data-mk="'+f.id+'">Paga</button>':'')+
+        (canWrite()?'<button class="btn btn-xs" data-fe="'+f.id+'">'+IC.pen+'</button>'+
+        '<button class="btn btn-xs" data-fd="'+f.id+'">'+IC.trash+'</button>':'')+'</span></td>';
+      rq.appendChild(tr);
+    });
+  }
+  const pb=$("#pb",page);
+  if(pb){
+    if(!pays.length) pb.innerHTML='<tr><td colspan="7"><div class="empty">Nessun pagamento registrato.</div></td></tr>';
+    pays.forEach(f=>{
+      const tr=el("tr");
+      tr.innerHTML='<td class="hd"><b>'+fmtD(f.date)+'</b> · '+esc(f.supplier||"—")+
+          (f.planId?' <span class="chip info">da piano</span>':'')+'</td>'+
+        '<td data-l="Descrizione" class="muted">'+esc(f.desc||"")+'</td>'+
+        '<td data-l="Pagato da">'+payerChips(f,p)+'</td>'+
+        '<td data-l="Modalità" class="muted" style="font-size:12px">'+esc((METHODS.find(x=>x[0]===f.method)||["","—"])[1])+'</td>'+
+        '<td data-l="Importo" class="r" style="font-weight:700">'+VI(f.amount,f)+(f.noVat?' <span class="novat">no iva</span>':'')+'</td>'+
+        '<td class="r act-cell"><span class="act row" style="justify-content:flex-end;gap:4px">'+
+        (canWrite()?'<button class="btn btn-xs" data-fe="'+f.id+'">'+IC.pen+'</button>'+
+        '<button class="btn btn-xs" data-fd="'+f.id+'">'+IC.trash+'</button>':'')+'</span></td>';
+      pb.appendChild(tr);
+    });
+  }
+  const lg=$("#lg",page);
+  if(lg){
+    if(!S.ledger.length) lg.innerHTML='<tr><td colspan="6"><div class="empty">Nessuna partita tra soci.<br>'+
+      '<span style="font-size:12px">Esempio: «Aloi ha pagato 1.000 € per conto di Pasta».</span></div></td></tr>';
+    S.ledger.forEach(l=>{
+      const a=(p.partners||[]).find(x=>x.id===l.from), bb=(p.partners||[]).find(x=>x.id===l.to);
+      const tr=el("tr");
+      tr.innerHTML='<td class="hd"><b>'+esc(a?a.name:"—")+'</b> → '+esc(bb?bb.name:"—")+
+          (l.kind==="settle"?' <span class="chip good">rimborso</span>':'')+'</td>'+
+        '<td data-l="Data" class="mono" style="font-size:12px">'+fmtD(l.date)+'</td>'+
+        '<td data-l="Descrizione" class="muted">'+esc(l.desc||"")+'</td>'+
+        '<td data-l="Importo" class="r" style="font-weight:700">'+eur0(l.amount)+'</td>'+
+        '<td class="r act-cell"><span class="act">'+(canWrite()?'<button class="btn btn-xs btn-danger" data-ld="'+l.id+'">'+IC.trash+'</button>':'')+'</span></td>';
+      lg.appendChild(tr);
+    });
+  }
+  const bal=$("#bal",page);
+  if(bal){
+    if(!lb.rows.length){ bal.innerHTML='<div class="dim" style="font-size:12.5px">Configura i soci per vedere i saldi.</div>' }
+    else{
+      bal.innerHTML='<div class="split"><span class="l">Totale versato</span><span class="v">'+eur0(lb.totalPaid)+'</span></div>'+
+        lb.rows.map(r=>{
+          const tone=r.balance>1?"good":r.balance<-1?"bad":"";
+          return '<div class="balrow" data-soc="'+r.id+'" style="border-bottom:1px solid var(--line-2)" '+
+            'title="Apri lo spaccato del conto di '+esc(r.name)+'">'+
+          '<div class="row" style="justify-content:space-between;margin-bottom:6px">'+
+            '<span style="font-size:13px;font-weight:700">'+esc(r.name)+' <span class="dim mono" style="font-size:11px;font-weight:500">quota '+pct(r.quota,0)+'</span></span>'+
+            '<span class="chip '+tone+'">'+(r.balance>1?"a credito":r.balance<-1?"a debito":"in pari")+' '+eur0(Math.abs(r.balance))+'</span></div>'+
+          '<table class="mini-tbl" style="width:100%"><tr><td class="dim">Versato</td><td class="r">'+eur0(r.paid)+'</td></tr>'+
+          '<tr><td class="dim">Dovuto su quota</td><td class="r">'+eur0(r.due)+'</td></tr>'+
+          (Math.abs(r.manual)>0.5?'<tr><td class="dim">Partite dirette</td><td class="r">'+eur0(r.manual)+'</td></tr>':'')+
+          '</table></div>'}).join("")+
+        '<p class="dim" style="font-size:11.5px;margin-top:10px">Tocca un socio per vedere lo spaccato dei movimenti.</p>';
+      $$("[data-soc]",bal).forEach(x=>x.addEventListener("click",()=>socioModal(p,x.dataset.soc)));
+    }
+  }
+  const bpl=$("#f_pl",page); if(bpl) bpl.addEventListener("click",()=>planModal(null));
+  const br=$("#f_req",page); if(br) br.addEventListener("click",()=>finModal(null,"request"));
+  const bp=$("#f_pay",page); if(bp) bp.addEventListener("click",()=>finModal(null,"payment"));
+  const bs=$("#f_soci",page); if(bs) bs.addEventListener("click",()=>partnersModal(p));
+  const bw=$("#f_who",page); if(bw) bw.addEventListener("click",()=>settlementModal(p));
+  const bl=$("#f_le",page); if(bl) bl.addEventListener("click",()=>ledgerModal(p));
+  $$("[data-fe]",page).forEach(b=>b.addEventListener("click",()=>{const f=S.fin.find(x=>x.id===b.dataset.fe);if(f)finModal(f,f.kind)}));
+  $$("[data-fd]",page).forEach(b=>b.addEventListener("click",()=>{
+    const f=S.fin.find(x=>x.id===b.dataset.fd); if(!f)return;
+    confirmBox("Elimina voce","Eliminare «"+(f.supplier||f.desc||"voce")+"» ("+VE(f.amount)+")?","Elimina",async()=>{
+      await del(ppath("fin/"+f.id)); await loadProjectData(S.pid); render(); toast("Voce eliminata")})}));
+  $$("[data-ld]",page).forEach(b=>b.addEventListener("click",async()=>{
+    await del(ppath("ledger/"+b.dataset.ld)); await loadProjectData(S.pid); render(); toast("Partita eliminata")}));
+  $$("[data-mk]",page).forEach(b=>b.addEventListener("click",()=>{
+    const f=S.fin.find(x=>x.id===b.dataset.mk); if(f) payRequest(f,p)}));
+}
+
+const APP_VER="v21 · 21.10.2026";
 
 /* ========================= INIT ========================= */
 const th=lsGet("repjt.theme"); document.documentElement.setAttribute("data-theme",th||"dark");
