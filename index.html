@@ -7462,7 +7462,7 @@ function sociAggr(p,items){
   const map={};
   (items||[]).forEach(it=>quotaSplit(p,it.amount,it.paidBy).forEach(r=>{
     if(!map[r.id]) map[r.id]={name:r.name,val:0};
-    map[r.id].val+=r.val*vatKi(it);
+    map[r.id].val+=r.val*vatKi(it)*signOf(it);
   }));
   return Object.keys(map).map(k=>map[k]).filter(r=>Math.abs(r.val)>0.5).sort((a,b)=>b.val-a.val);
 }
@@ -7471,17 +7471,19 @@ function tipSoci(p,amount,paidBy,titolo,it){
   const rows=quotaSplit(p,amount,paidBy);
   if(!rows.length||!N(amount)) return "";
   if(rows[0].solo) return '<div class="sep"></div>'+tipHead(titolo||"A carico di un solo socio")+
-    tipRow(rows[0].name+" · 100%",VI(rows[0].val,it));
+    tipRow(rows[0].name+" · 100%",VSG(rows[0].val,it));
   return '<div class="sep"></div>'+tipHead(titolo||"Quota per socio")+
-    rows.map(r=>tipRow(r.name+" · "+pct(r.quota,Math.abs(r.quota%1)>0.05?1:0),VI(r.val,it))).join("");
+    rows.map(r=>tipRow(r.name+" · "+pct(r.quota,Math.abs(r.quota%1)>0.05?1:0),VSG(r.val,it))).join("");
 }
 
 function tipSociAggr(p,items,titolo){
   const rows=sociAggr(p,items);
   if(!rows.length) return "";
-  const tot=rows.reduce((s,r)=>s+r.val,0)||1;
+  const tot=rows.reduce((s,r)=>s+r.val,0);
+  const ok=Math.abs(tot)>0.5;
   return '<div class="sep"></div>'+tipHead(titolo||"Quota per socio")+
-    rows.map(r=>{const q=r.val/tot*100; return tipRow(r.name+" · "+pct(q,Math.abs(q%1)>0.05?1:0),eur0(r.val))}).join("");
+    rows.map(r=>{const q=ok?r.val/tot*100:0;
+      return tipRow(r.name+(ok?" · "+pct(q,Math.abs(q%1)>0.05?1:0):""),eurSigned(r.val))}).join("");
 }
 
 function payTip(it,bar,R,live,p){
@@ -9062,7 +9064,6 @@ function planModal(it){
     if(se){ const op=Array.prototype.slice.call(se.options).find(x=>x.value==="pagato"); if(op) op.textContent=inflow?"Incassato":"Pagato" }
     const mk=$("#q_mkw",b); if(mk) mk.classList.toggle("hide",inflow);
     const am=$("#q_amt",b); if(am&&am.previousElementSibling) am.previousElementSibling.textContent=inflow?"Importo € (entrata)":"Importo €";
-    const nv=$("#q_novat",b); if(nv&&inflow) nv.checked=false;
     const ca=$("#q_cat",b); if(ca&&ca.previousElementSibling) ca.previousElementSibling.textContent=inflow?"Categoria":"Voce di costo";
   };
   $$("#q_dir button",b).forEach(bt=>bt.addEventListener("click",()=>{ st.dir=bt.dataset.d; syncDir() }));
@@ -9176,7 +9177,7 @@ function planModal(it){
     }});
 }
 
-const APP_VER="v19 · 21.10.2026";
+const APP_VER="v20 · 21.10.2026";
 
 /* ========================= INIT ========================= */
 const th=lsGet("repjt.theme"); document.documentElement.setAttribute("data-theme",th||"dark");
