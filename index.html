@@ -862,6 +862,59 @@ input.inp[type="text"]:not([data-nocase]){text-transform:uppercase}
 
 .g-li .tags{flex:none;display:flex;gap:4px;align-items:center;max-width:46%;overflow:hidden}
 .g-li .tags>span{margin-left:0}
+
+/* ====================================================================
+   v23 — Documenti: albero cartelle, percorso, ricerca, griglia/elenco
+   ==================================================================== */
+.fold{grid-template-columns:252px 1fr}
+.fold-side{padding:10px 8px;display:flex;flex-direction:column;gap:1px;max-height:72vh;overflow:auto}
+.fold-side::-webkit-scrollbar{width:6px}
+.fold-side::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+.fold-i{gap:6px;font-size:12.5px;text-align:left}
+.fold-i .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fold-i.sub{padding-left:30px}
+.fold-i.empty .fn,.fold-i.empty .c{opacity:.5}
+.fold-i .c{min-width:18px;text-align:right}
+.ftree-t{width:15px;height:15px;flex:none;display:grid;place-items:center;border-radius:4px;
+  transition:transform .16s,background .16s;color:var(--ink-3);transform:rotate(-90deg)}
+.ftree-t svg{width:13px;height:13px;opacity:1}
+.ftree-t.open{transform:rotate(0deg)}
+.ftree-t:hover{background:var(--line-2)}
+.fsep{height:1px;background:var(--line);margin:7px 2px}
+
+.dcrumb{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+.dcrumb b{font-size:16px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.dcrumb span{color:var(--ink-4)}
+.dcrumb button{background:none;border:0;padding:0;cursor:pointer;font-family:var(--ff);
+  font-size:13px;font-weight:600;color:var(--ink-3)}
+.dcrumb button:hover{color:var(--accent);text-decoration:underline}
+
+.dbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.dbar .srch{flex:1;min-width:170px}
+.dbar .srch .inp{width:100%;height:36px;font-size:12.5px}
+.vtog{display:flex;gap:2px;padding:3px;background:var(--surface-2);border:1px solid var(--line-2);
+  border-radius:999px;flex:none}
+.vtog button{border:0;background:transparent;border-radius:999px;padding:6px 13px;cursor:pointer;
+  font-family:var(--ff);font-size:11.5px;font-weight:700;color:var(--ink-3);transition:background .16s,color .16s}
+.vtog button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-1)}
+
+.subrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(152px,1fr));gap:8px;margin-bottom:14px}
+.fgrid{grid-template-columns:repeat(auto-fill,minmax(156px,1fr));gap:11px}
+.fcard .meta .bn{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dlist .fx{display:inline-block;min-width:30px;margin-right:7px;font-family:var(--fm);font-size:9.5px;font-weight:700}
+.dlist .bn{font-size:11px;color:var(--accent);font-weight:600}
+.dlist td{vertical-align:middle}
+@media(max-width:880px){
+  .fold{grid-template-columns:1fr}
+  .fold-side{border-right:0;border-bottom:1px solid var(--line);max-height:230px}
+}
+
+.fcard .fa{flex-wrap:nowrap;padding:0 7px 9px;gap:3px}
+.fcard .fa .btn{padding:4px 6px;font-size:10px;flex:0 0 auto}
+.fcard .fa .btn svg{width:12px;height:12px}
+.fcard .fa .btn:first-child{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fgrid{grid-template-columns:repeat(auto-fill,minmax(166px,1fr))}
 </style>
 <div id="root"><div class="loading"><div class="spin"></div>Caricamento…</div></div>
 <div id="toasts"></div>
@@ -5791,7 +5844,7 @@ function uploadModal(list,p){
   if(!list||!list.length) return;
   const all=(p.folders&&p.folders.length?p.folders:DEFAULT_FOLDERS);
   const roots=orderFolders(all.filter(canFolder)).filter(f=>!parentOf(f));
-  const cur=parentOf(S.folder)||S.folder;
+  const cur=(S.folder&&S.folder!=="__all")?(parentOf(S.folder)||S.folder):(roots[0]||"");
   const imgs=list.filter(f=>IMG_EXT.indexOf(extOf(f.name))>=0).length;
   const items=list.map(f=>({file:f,name:f.name,desc:""}));
   const b=el("div");
@@ -5838,11 +5891,11 @@ function uploadModal(list,p){
   $("#uf_grp",b).addEventListener("input",fillDL);
   modal({title:"Carica documenti",wide:true,body:b,ok:"Carica "+list.length+" file",
     onOk:async(body)=>{
-      const par=$("#uf_fold",body).value;
-      const grp=$("#uf_grp",body).value.trim();
+      const par=normFolder($("#uf_fold",body).value);
+      const grp=normFolder($("#uf_grp",body).value);
       if(imgs&&!grp){ toast("Indica il gruppo: le foto vanno in una sottocartella",true); return false }
       const folder=grp?(par+SEP+grp):par;
-      if(all.indexOf(folder)<0){
+      if(!all.some(x=>folderKey(x)===folderKey(folder))){
         const nl=all.slice(); nl.push(folder);
         p.folders=nl; await patch("projects/"+p.id,{folders:nl});
       }
@@ -9925,7 +9978,278 @@ function finModal(f,kind){
     }});
 }
 
-const APP_VER="v22 · 21.10.2026";
+
+/* ======================================================================
+   v23 — Documenti riorganizzati: albero cartelle con apri/chiudi,
+          percorso in alto, ricerca, vista a griglia o a elenco,
+          un'unica griglia (niente più un file per riga) e strumento
+          per unire le cartelle duplicate
+   ====================================================================== */
+const ALLF="__all";
+function normFolder(s){ return String(s||"").replace(/\s+/g," ").trim() }
+function folderKey(s){ return normFolder(s).toLowerCase() }
+
+/* cartelle che differiscono solo per spazi o maiuscole */
+function dupFolders(all){
+  const seen={}, dups=[];
+  (all||[]).forEach(f=>{
+    const k=folderKey(f);
+    if(seen[k]===undefined) seen[k]=f;
+    else if(seen[k]!==f) dups.push({from:f,to:seen[k]});
+  });
+  return dups;
+}
+function descOf(all,f){ return (all||[]).filter(x=>x!==f&&parentOf(x)===f) }
+function countIn(files,all,f){
+  const kids=descOf(all,f);
+  return files.filter(x=>x.folder===f||kids.indexOf(x.folder)>=0).length;
+}
+
+/* ---------- unione delle cartelle doppie ---------- */
+function fixFoldersModal(p){
+  const all=(p.folders&&p.folders.length?p.folders:DEFAULT_FOLDERS).slice();
+  const dups=dupFolders(all);
+  if(!dups.length){ toast("Nessuna cartella duplicata"); return }
+  const b=el("div");
+  b.innerHTML='<p class="muted" style="font-size:12.5px;margin-bottom:12px">Queste cartelle hanno lo stesso nome a meno di spazi o maiuscole. '+
+    'Unendole, i file vengono spostati nella prima e le copie vuote spariscono. I file non vengono mai eliminati.</p>'+
+    dups.map(d=>'<div class="split"><span class="l">«'+esc(d.from)+'» <span class="dim">'+
+      (S.files.filter(f=>f.folder===d.from).length)+' file</span></span>'+
+      '<span class="v">→ «'+esc(d.to)+'»</span></div>').join("");
+  modal({title:"Unisci cartelle doppie",wide:true,body:b,ok:"Unisci ("+dups.length+")",onOk:async()=>{
+    let moved=0;
+    for(const d of dups){
+      const fl=S.files.filter(f=>f.folder===d.from);
+      for(const f of fl){ if(await patch(ppath("files/"+f.id),{folder:d.to})) moved++ }
+      /* sposta anche le sottocartelle */
+      for(let i=0;i<all.length;i++){
+        if(parentOf(all[i])===d.from) all[i]=d.to+SEP+leafOf(all[i]);
+      }
+    }
+    const togli={}; dups.forEach(d=>togli[d.from]=1);
+    const puliti=[]; all.forEach(f=>{ if(!togli[f]&&puliti.indexOf(f)<0) puliti.push(f) });
+    p.folders=puliti;
+    if(!await patch("projects/"+p.id,{folders:puliti})) return false;
+    S.folder=puliti[0]||"";
+    await loadProjectData(S.pid); render();
+    toast(dups.length+" cartelle unite · "+moved+" file spostati");
+    return true;
+  }});
+}
+
+/* ---------- nuova cartella ---------- */
+function newFolderModal(p){
+  const all=(p.folders&&p.folders.length?p.folders:DEFAULT_FOLDERS);
+  const roots=orderFolders(all.filter(canFolder)).filter(f=>!parentOf(f));
+  const curRoot=(S.folder&&S.folder!==ALLF)?(parentOf(S.folder)||S.folder):"";
+  const b=el("div");
+  b.innerHTML='<div class="f2">'+
+    sel("nf_par","Dentro la cartella",curRoot,[["","— cartella principale —"]].concat(roots.map(x=>[x,x])))+
+    fld("nf_name","Nome","text","","placeholder=\"es. STATO FINE DEMOLIZIONI\"")+'</div>'+
+    '<p class="dim" style="font-size:11.5px">Due livelli: cartella principale e sottocartella. '+
+    'Le sottocartelle tengono insieme i documenti di una stessa fase.</p>';
+  modal({title:"Nuova cartella",body:b,ok:"Crea",onOk:async(body)=>{
+    const n=normFolder($("#nf_name",body).value);
+    if(!n){toast("Inserisci un nome",true);return false}
+    const par=normFolder($("#nf_par",body).value);
+    const full=par?(par+SEP+n):n;
+    if(all.some(x=>folderKey(x)===folderKey(full))){ toast("Esiste già una cartella con questo nome",true); return false }
+    const list=all.slice(); list.push(full);
+    p.folders=list; if(!await patch("projects/"+p.id,{folders:list})) return false;
+    S.folder=full; render(); toast("Cartella creata"); return true;
+  }});
+}
+
+/* ---------- riga della vista elenco ---------- */
+function fileRow(f,p,showFolder){
+  const ex=fileExt(f);
+  const tr=el("tr");
+  tr.innerHTML='<td class="hd"><span class="fx" style="color:'+extColor(ex)+'">'+esc((ex||"?").toUpperCase())+'</span>'+
+      '<b>'+esc(f.name)+'</b>'+(isNewDoc(f)?'<span class="chip acc" style="margin-left:6px">nuovo</span>':'')+
+      (f.batchNote?'<span class="bn"> · '+esc(f.batchNote)+'</span>':'')+'</td>'+
+    '<td data-l="Descrizione" class="muted">'+esc(f.desc||"—")+'</td>'+
+    (showFolder?'<td data-l="Cartella" class="muted">'+esc(leafOf(f.folder||""))+'</td>':'')+
+    '<td data-l="Dimensione" class="mono" style="font-size:11.5px">'+sizeStr(f.size)+'</td>'+
+    '<td data-l="Caricato" class="mono" style="font-size:11.5px">'+fmtD(String(f.at||"").slice(0,10))+'</td>'+
+    '<td data-l="Da" class="muted" style="font-size:12px">'+esc(uploaderName(f))+'</td>'+
+    '<td class="r act-cell"><span class="act row" style="justify-content:flex-end;gap:4px">'+
+      (canPreview(f)?'<button class="btn btn-xs" data-open>Anteprima</button>':'')+
+      '<button class="btn btn-xs" data-dl title="Scarica">'+IC.dl+'</button>'+
+      (canWrite()?'<button class="btn btn-xs" data-ed title="Nome e descrizione">'+IC.pen+'</button>'+
+        '<button class="btn btn-xs btn-danger" data-rm title="Elimina">'+IC.trash+'</button>':'')+'</span></td>';
+  $("[data-dl]",tr).addEventListener("click",()=>downloadFile(f));
+  const op=$("[data-open]",tr); if(op) op.addEventListener("click",()=>previewFile(f));
+  const ed=$("[data-ed]",tr); if(ed) ed.addEventListener("click",()=>fileEditModal(f,p||P()));
+  const rm=$("[data-rm]",tr);
+  if(rm) rm.addEventListener("click",()=>confirmBox("Elimina documento",
+    "Eliminare «"+f.name+"»? L'operazione non è reversibile.","Elimina definitivamente",
+    async()=>{ await deleteFile(f) }));
+  tr.addEventListener("pointerenter",ev=>tipShow(fileTip(f),ev));
+  tr.addEventListener("pointermove",ev=>tipMove(ev));
+  tr.addEventListener("pointerleave",tipHide);
+  return tr;
+}
+
+/* ---------- vista Documenti ---------- */
+function viewDocs(sc,p){
+  const all=(p.folders&&p.folders.length?p.folders:DEFAULT_FOLDERS);
+  const folders=orderFolders(all.filter(canFolder));
+  const hidden=all.length-folders.length;
+  if(!folders.length){
+    sc.innerHTML='<div class="page"><div class="page-head"><div><h1>Documenti</h1></div></div>'+
+      '<div class="card"><div class="empty"><div class="big">Nessuna cartella accessibile</div>'+
+      'Il tuo profilo non ha accesso alle cartelle documenti di questa operazione.</div></div></div>';
+    return;
+  }
+  if(S.folder!==ALLF && (!S.folder||folders.indexOf(S.folder)<0)) S.folder=folders[0];
+  if(!S.docView) S.docView=lsGet("repjt.docview")||"grid";
+  if(S.docQ==null) S.docQ="";
+  if(!S.docOpen) S.docOpen={};
+  const curRoot=S.folder===ALLF?"":(parentOf(S.folder)||S.folder);
+  if(curRoot) S.docOpen[curRoot]=true;
+
+  const visFiles=S.files.filter(f=>canFolder(f.folder));
+  const isAll=S.folder===ALLF;
+  const q=normFolder(S.docQ).toLowerCase();
+  const match=f=>!q||String(f.name||"").toLowerCase().indexOf(q)>=0
+    ||String(f.desc||"").toLowerCase().indexOf(q)>=0
+    ||String(f.batchNote||"").toLowerCase().indexOf(q)>=0;
+  const kids=isAll?[]:folders.filter(f=>parentOf(f)===S.folder);
+  const base=isAll?visFiles:visFiles.filter(f=>f.folder===S.folder);
+  const inF=base.filter(match).slice().sort((a,b)=>String(b.at||"").localeCompare(String(a.at||"")));
+  const nNew=visFiles.filter(isNewDoc).length;
+  const dups=canWrite()?dupFolders(all):[];
+
+  const crumb=isAll?'<b>Tutti i file</b>'
+    :(parentOf(S.folder)
+      ?'<button data-cr="'+esc(parentOf(S.folder))+'">'+esc(parentOf(S.folder))+'</button><span>›</span><b>'+esc(leafOf(S.folder))+'</b>'
+      :'<b>'+esc(S.folder)+'</b>');
+
+  const page=el("div","page");
+  page.innerHTML='<div class="page-head"><div><h1>Documenti</h1>'+
+    '<div class="sub">'+visFiles.length+' file · '+folders.length+' cartelle · '+
+    sizeStr(visFiles.reduce((a,x)=>a+N(x.size),0))+' di archivio'+
+    (nNew?' · <b style="color:var(--accent)">'+nNew+' nuovi</b>':'')+
+    (hidden?' <span class="dim">· '+hidden+' non accessibili</span>':'')+'</div></div><div class="sp"></div>'+
+    (canWrite()?'<div class="row">'+
+      (dups.length?'<button class="btn btn-sm" id="d_fix" style="color:var(--warn);border-color:var(--warn)">'+
+        dups.length+' cartelle doppie</button>':'')+
+      '<button class="btn btn-sm" id="d_nf">'+IC.plus+'Cartella</button>'+
+      '<button class="btn btn-pri btn-sm" id="d_up">'+IC.up+'Carica file</button></div>':'')+'</div>'+
+    '<div class="fold"><div class="fold-side" id="fs"></div><div class="fold-main">'+
+      '<div class="dcrumb">'+crumb+'<span class="chip" style="margin-left:6px">'+inF.length+' file</span></div>'+
+      '<div class="dbar">'+
+        '<div class="srch"><input class="inp" id="d_q" data-nocase placeholder="Cerca per nome o descrizione…" value="'+esc(S.docQ)+'"></div>'+
+        '<div class="vtog"><button data-v="grid"'+(S.docView==="grid"?' class="on"':'')+'>Griglia</button>'+
+        '<button data-v="list"'+(S.docView==="list"?' class="on"':'')+'>Elenco</button></div>'+
+      '</div>'+
+      (kids.length?'<div class="subrow" id="subs"></div>':'')+
+      (canWrite()&&!isAll?'<div class="drop" id="drop" style="margin-bottom:14px">'+
+        '<div style="font-weight:700;color:var(--ink-2);font-size:13px">Trascina i file qui</div>'+
+        '<div style="font-size:12px;margin-top:3px">oppure <b id="pick" style="cursor:pointer;text-decoration:underline">scegli dal dispositivo</b></div>'+
+        '<input type="file" id="fi" multiple class="hide"></div>':'')+
+      '<div id="fg"></div></div></div>';
+  sc.innerHTML=""; sc.appendChild(page);
+
+  /* ---- albero delle cartelle ---- */
+  const fs=$("#fs",page);
+  const allBtn=el("button","fold-i"+(isAll?" on":""));
+  allBtn.innerHTML=IC.folder+'<span class="fn">Tutti i file</span><span class="c">'+visFiles.length+'</span>';
+  allBtn.addEventListener("click",()=>{S.folder=ALLF;render()});
+  fs.appendChild(allBtn);
+  fs.appendChild(el("div","fsep"));
+  folders.filter(f=>!parentOf(f)).forEach(r=>{
+    const ch=folders.filter(f=>parentOf(f)===r);
+    const n=countIn(visFiles,folders,r);
+    const open=!!S.docOpen[r];
+    const b2=el("button","fold-i"+(r===S.folder?" on":"")+(n?"":" empty"));
+    b2.innerHTML=(ch.length?'<span class="ftree-t'+(open?" open":"")+'" data-tg="'+esc(r)+'">'+IC.chev+'</span>':'<span class="ftree-t"></span>')+
+      IC.folder+'<span class="fn">'+esc(r)+'</span>'+
+      (visFiles.some(x=>(x.folder===r||ch.indexOf(x.folder)>=0)&&isNewDoc(x))?'<span class="dot-new" style="margin-left:4px"></span>':'')+
+      '<span class="c">'+n+'</span>';
+    b2.addEventListener("click",ev=>{
+      if(ev.target.closest("[data-tg]")){ S.docOpen[r]=!open; render(); return }
+      S.folder=r; S.docOpen[r]=true; render();
+    });
+    fs.appendChild(b2);
+    if(open) ch.forEach(k=>{
+      const nk=visFiles.filter(x=>x.folder===k).length;
+      const b3=el("button","fold-i sub"+(k===S.folder?" on":"")+(nk?"":" empty"));
+      b3.innerHTML='<span class="tick"></span><span class="fn">'+esc(leafOf(k))+'</span>'+
+        (visFiles.some(x=>x.folder===k&&isNewDoc(x))?'<span class="dot-new" style="margin-left:4px"></span>':'')+
+        '<span class="c">'+nk+'</span>';
+      b3.addEventListener("click",()=>{S.folder=k;render()});
+      fs.appendChild(b3);
+    });
+  });
+
+  /* ---- sottocartelle come riquadri ---- */
+  const subs=$("#subs",page);
+  if(subs) kids.forEach(k=>{
+    const n=visFiles.filter(x=>x.folder===k).length;
+    const bb=el("button","subcard");
+    bb.innerHTML=IC.folder+'<span class="sn">'+esc(leafOf(k))+'</span><span class="sc">'+n+' file</span>';
+    bb.addEventListener("click",()=>{S.folder=k;render()});
+    subs.appendChild(bb);
+  });
+
+  /* ---- file ---- */
+  const fg=$("#fg",page);
+  const freshIds=visFiles.filter(isNewDoc).map(f=>f.id);
+  const freshSet={}; freshIds.forEach(id=>freshSet[id]=1);
+  if(!inF.length){
+    fg.innerHTML='<div class="empty">'+(q?'Nessun file corrisponde a «'+esc(S.docQ)+'».'
+      :(kids.length?'Nessun file qui: apri una sottocartella.':'Nessun file in questa cartella.'))+'</div>';
+  } else if(S.docView==="list"){
+    const t=el("div","tbl-wrap");
+    t.innerHTML='<table class="tbl resp dlist"><thead><tr><th>Nome</th><th>Descrizione</th>'+
+      (isAll?'<th>Cartella</th>':'')+'<th>Dimensione</th><th>Caricato</th><th>Da</th><th></th></tr></thead><tbody></tbody></table>';
+    const tb=$("tbody",t);
+    inF.forEach(f=>tb.appendChild(fileRow(f,p,isAll)));
+    fg.appendChild(t);
+  } else {
+    const grid=el("div","fgrid");
+    inF.forEach(f=>{
+      const c=fileCard(f,p);
+      if(freshSet[f.id]){ c.classList.add("isnew"); $(".thumb",c).appendChild(el("span","newbadge","NUOVO")) }
+      const meta=$(".meta",c);
+      if(isAll&&f.folder) meta.insertBefore(el("div","bn",leafOf(f.folder)),meta.firstChild);
+      else if(f.batchNote) meta.insertBefore(el("div","bn",f.batchNote),meta.firstChild);
+      grid.appendChild(c);
+    });
+    fg.appendChild(grid);
+    hydrateThumbs(fg,inF);
+  }
+  markDocsSeen(p,freshIds);
+
+  /* ---- comandi ---- */
+  $$("[data-cr]",page).forEach(x=>x.addEventListener("click",()=>{S.folder=x.dataset.cr;render()}));
+  $$("[data-v]",page).forEach(x=>x.addEventListener("click",()=>{
+    S.docView=x.dataset.v; lsSet("repjt.docview",S.docView); render() }));
+  const qi=$("#d_q",page);
+  if(qi){
+    let tmr=null;
+    qi.addEventListener("input",()=>{ clearTimeout(tmr); tmr=setTimeout(()=>{
+      S.docQ=qi.value; render();
+      const n2=$("#d_q"); if(n2){ n2.focus(); n2.setSelectionRange(n2.value.length,n2.value.length) }
+    },260) });
+  }
+  const fx=$("#d_fix",page); if(fx) fx.addEventListener("click",()=>fixFoldersModal(p));
+  const nf=$("#d_nf",page); if(nf) nf.addEventListener("click",()=>newFolderModal(p));
+  const fi=$("#fi",page);
+  const up=$("#d_up",page);
+  if(up) up.addEventListener("click",()=>{ if(fi) fi.click(); else toast("Apri una cartella per caricare i file",true) });
+  if(fi){
+    const pick=$("#pick",page); if(pick) pick.addEventListener("click",()=>fi.click());
+    fi.addEventListener("change",()=>{ if(fi.files&&fi.files.length){ uploadModal(Array.from(fi.files),p); fi.value="" } });
+    const drop=$("#drop",page);
+    ["dragenter","dragover"].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add("over")}));
+    ["dragleave","drop"].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove("over")}));
+    drop.addEventListener("drop",ev=>{ const fl=ev.dataTransfer&&ev.dataTransfer.files; if(fl&&fl.length) uploadModal(Array.from(fl),p) });
+  }
+}
+
+const APP_VER="v23 · 21.10.2026";
 
 /* ========================= INIT ========================= */
 const th=lsGet("repjt.theme"); document.documentElement.setAttribute("data-theme",th||"dark");
