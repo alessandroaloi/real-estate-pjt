@@ -10450,7 +10450,271 @@ function promptModal(p,socio){
   modal({title:"Prompt per Augusta Holding",wide:true,body:b,ok:null,cancel:"Chiudi"});
 }
 
-const APP_VER="v24 · 28.10.2026";
+/* ======================================================================
+   v25 — il cash flow per socio diventa MENSILE (Augusta Holding gira
+          su base mensile: niente più settimane)
+   ====================================================================== */
+function monKey(d){ const x=(d instanceof Date)?d:(pd(d)||new Date());
+  return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0") }
+function monEmpty(y,m){ return {mese:y+"-"+String(m+1).padStart(2,"0"),anno:y,mese_num:m+1,
+  etichetta:MESI[m]+" "+y,inizio:iso(new Date(y,m,1)),fine:iso(new Date(y,m+1,0)),
+  uscite:0,entrate:0,netto:0,quota:0} }
+
+/* mesi del piano visti dal singolo socio (entrate già detratte) */
+function partnerMonthly(p,sid,withVat,fillGaps){
+  const map={};
+  (S.plan||[]).forEach(it=>{
+    /* settimana a cavallo di due mesi: il costo vale come se cadesse il lunedi'
+       di quella settimana, quindi finisce nel mese precedente */
+    const d=monday(pd(it.date)||new Date());
+    const k=monKey(d);
+    if(!map[k]) map[k]=monEmpty(d.getFullYear(),d.getMonth());
+    const kk=withVat?cashK(p,it):1;
+    const amt=N(it.amount)*kk, sg=signOf(it);
+    if(sg>0) map[k].uscite+=amt; else map[k].entrate+=amt;
+    map[k].netto+=amt*sg;
+    if(sid){
+      const r=quotaSplit(p,it.amount,it.paidBy).find(x=>x.id===sid);
+      if(r) map[k].quota+=r.val*kk*sg;
+    } else map[k].quota+=amt*sg;
+  });
+  let keys=Object.keys(map).sort();
+  if(fillGaps&&keys.length>1){
+    const a=keys[0].split("-"), b=keys[keys.length-1].split("-");
+    let y=+a[0], m=+a[1]-1; const ye=+b[0], me=+b[1]-1; const out=[];
+    while(y<ye||(y===ye&&m<=me)){ const k=y+"-"+String(m+1).padStart(2,"0");
+      out.push(map[k]||monEmpty(y,m)); m++; if(m>11){m=0;y++} }
+    return out;
+  }
+  return keys.map(k=>map[k]);
+}
+
+function partnerCsv(p,socio,rows,withVat,sepSemi){
+  const sep=sepSemi?";":",";
+  const num=v=>{ const s=r2(v).toFixed(2); return sepSemi?s.replace(".",","):s };
+  const q=v=>{ const s=String(v==null?"":v); return (s.indexOf(sep)>=0||s.indexOf('"')>=0)?'"'+s.replace(/"/g,'""')+'"':s };
+  const head=["operazione","socio","quota_pct","mese","anno","mese_num","data_inizio","data_fine",
+    "uscite","entrate","netto","quota_socio","iva"];
+  const lines=[head.join(sep)];
+  rows.forEach(w=>{
+    lines.push([q(p.name||""),q(socio?socio.name:"TUTTI I SOCI"),
+      num(socio?N(socio.quota):100),w.mese,w.anno,w.mese_num,w.inizio,w.fine,
+      num(w.uscite),num(w.entrate),num(w.netto),num(w.quota),
+      withVat?"inclusa":"esclusa"].join(sep));
+  });
+  return "﻿"+lines.join("\r\n")+"\r\n";
+}
+function partnerJson(p,socio,rows,withVat){
+  const tot=rows.reduce((a,w)=>({uscite:a.uscite+w.uscite,entrate:a.entrate+w.entrate,
+    netto:a.netto+w.netto,quota:a.quota+w.quota}),{uscite:0,entrate:0,netto:0,quota:0});
+  return JSON.stringify({
+    fonte:"REAL ESTATE PJT",
+    versione_formato:2,
+    periodicita:"mensile",
+    operazione:p.name||"",
+    indirizzo:p.address||p.city||"",
+    socio:socio?socio.name:"TUTTI I SOCI",
+    quota_pct:socio?N(socio.quota):100,
+    valuta:"EUR",
+    iva:withVat?"inclusa":"esclusa",
+    generato_il:iso(new Date()),
+    nota:"quota_socio e' gia' al netto delle entrate (mutuo, incassi): valore positivo = esborso, negativo = incasso. Una settimana a cavallo di due mesi e' contata nel mese del suo lunedi'.",
+    mesi:rows.map(w=>({mese:w.mese,anno:w.anno,mese_num:w.mese_num,
+      data_inizio:w.inizio,data_fine:w.fine,
+      uscite:r2(w.uscite),entrate:r2(w.entrate),netto:r2(w.netto),quota_socio:r2(w.quota)})),
+    totali:{uscite:r2(tot.uscite),entrate:r2(tot.entrate),netto:r2(tot.netto),quota_socio:r2(tot.quota)}
+  },null,1);
+}
+
+function augustaPrompt(p,socio){
+  return [
+"Devi aggiungere ad Augusta Holding una funzione di import del cash flow MENSILE di un'operazione immobiliare.",
+"",
+"CONTESTO",
+"Il gestionale REAL ESTATE PJT esporta, per un singolo socio, il fabbisogno di cassa mese per mese di una",
+"operazione immobiliare. Augusta Holding lavora su base mensile, quindi il file e' gia' aggregato per mese:",
+"una riga per mese, nessuna settimana. Il file arriva in JSON (preferito) o CSV con le stesse informazioni.",
+"",
+"FORMATO JSON",
+"{",
+'  "fonte": "REAL ESTATE PJT",',
+'  "versione_formato": 2,',
+'  "periodicita": "mensile",',
+'  "operazione": "'+String(p.name||"NOME OPERAZIONE")+'",',
+'  "socio": "'+(socio?socio.name:"NOME SOCIO")+'",',
+'  "quota_pct": '+(socio?N(socio.quota):100)+',',
+'  "valuta": "EUR",',
+'  "iva": "inclusa",',
+'  "generato_il": "'+iso(new Date())+'",',
+'  "mesi": [',
+'    { "mese": "2026-10", "anno": 2026, "mese_num": 10,',
+'      "data_inizio": "2026-10-01", "data_fine": "2026-10-31",',
+'      "uscite": 25000.00, "entrate": 0.00, "netto": 25000.00, "quota_socio": 10625.00 }',
+"  ],",
+'  "totali": { "uscite": 0, "entrate": 0, "netto": 0, "quota_socio": 0 }',
+"}",
+"",
+"FORMATO CSV (stesse informazioni, una riga per mese)",
+"operazione,socio,quota_pct,mese,anno,mese_num,data_inizio,data_fine,uscite,entrate,netto,quota_socio,iva",
+"",
+"SIGNIFICATO DEI CAMPI",
+'- mese e\' la chiave del periodo in formato "AAAA-MM": e\' l\'unica cosa che conta per collocare l\'importo.',
+"- data_inizio e data_fine sono il primo e l'ultimo giorno di quel mese, solo per leggibilita'.",
+"- Le settimane a cavallo di due mesi sono gia' state attribuite al mese del loro lunedi' (il mese precedente):",
+"  non devi fare nessun riallineamento di date.",
+"- uscite = pagamenti previsti nel mese per l'INTERA operazione.",
+"- entrate = incassi previsti nel mese per l'intera operazione (erogazioni di mutuo, caparre, acconti).",
+"- netto = uscite meno entrate per l'intera operazione.",
+"- quota_socio = la parte di netto che compete a QUESTO socio secondo la sua quota.",
+"  E' il numero da usare nel cash flow: e' GIA' al netto delle entrate, quindi il mutuo e' gia' stato detratto.",
+"  Positivo = soldi che il socio deve mettere nel mese. Negativo = soldi che il socio incassa nel mese.",
+'- iva: "inclusa" significa che gli importi sono gia\' comprensivi di IVA dove dovuta (cassa reale).',
+"",
+"COSA DEVI COSTRUIRE",
+'1. Un pulsante "Importa cash flow operazione" che accetta un file .json o .csv.',
+"2. Leggi il file e mostra un'anteprima: nome operazione, socio, numero di mesi, periodo coperto (primo e ultimo",
+"   mese), totale quota_socio. Chiedi conferma prima di scrivere.",
+'3. Alla conferma crea nel cash flow una NUOVA VOCE di uscita chiamata esattamente come il campo "operazione".',
+"   Se una voce con quello stesso nome esiste gia', NON duplicarla: sostituisci i suoi importi con quelli nuovi",
+"   nei mesi coperti dal file, lasciando intatti i mesi fuori da quel periodo.",
+'4. Per ogni elemento di "mesi" registra l\'importo "quota_socio" nel mese indicato da "mese" (AAAA-MM).',
+"   Un mese presente nel file con quota_socio pari a 0 va scritto come 0, non ignorato.",
+"5. Gli importi negativi vanno trattati come entrate, non come uscite con il segno sbagliato.",
+"6. Salva insieme alla voce: operazione, socio, quota_pct, data di generazione e versione_formato,",
+"   cosi' un import successivo dello stesso file riconosce di essere un aggiornamento.",
+"7. Idempotenza: reimportare lo stesso file non deve raddoppiare nulla.",
+"",
+"VINCOLI",
+"- Il cash flow di Augusta Holding e' mensile: non creare colonne o righe settimanali.",
+"- Non modificare altre voci del cash flow.",
+'- Se "fonte" non e\' "REAL ESTATE PJT" o manca "mesi", rifiuta il file con un messaggio chiaro.',
+"- Se il file contiene un socio diverso da quello gia' importato per la stessa operazione, avvisami prima di procedere."
+  ].join("\n");
+}
+
+/* prompt correttivo: per la chat di Augusta che aveva ricevuto il formato settimanale */
+function augustaFixPrompt(p,socio){
+  return [
+"CORREZIONE AL FORMATO DI IMPORT DEL CASH FLOW OPERAZIONI.",
+"",
+"Ti avevo dato un formato settimanale: era sbagliato. Augusta Holding gira su base MENSILE,",
+"quindi l'import deve lavorare per mese e non per settimana. Il gestionale REAL ESTATE PJT ora",
+"esporta direttamente il file aggregato per mese.",
+"",
+"COSA CAMBIA NEL FILE",
+'- versione_formato passa da 1 a 2 e compare il campo "periodicita": "mensile".',
+'- L\'array "settimane" non esiste piu\': al suo posto c\'e\' "mesi".',
+'- Ogni elemento di "mesi" ha: mese ("AAAA-MM"), anno, mese_num, data_inizio (1° del mese),',
+"  data_fine (ultimo giorno del mese), uscite, entrate, netto, quota_socio.",
+'- Nel CSV l\'intestazione e\' ora: operazione,socio,quota_pct,mese,anno,mese_num,data_inizio,data_fine,',
+"  uscite,entrate,netto,quota_socio,iva",
+"",
+"COSA DEVI FARE",
+"1. Riscrivi il parser dell'import: la chiave del periodo e' il campo \"mese\" (AAAA-MM). Niente lunedi',",
+"   niente numero di settimana, nessuna aggregazione da fare: una riga del file = un mese del cash flow.",
+"2. Mantieni la compatibilita' con i vecchi file versione_formato 1: se trovi \"settimane\" invece di \"mesi\",",
+"   aggrega tu le settimane per mese usando il mese di data_inizio, e segnalamelo nell'anteprima.",
+"3. Se hai gia' creato strutture, colonne, tabelle o voci di cash flow su base settimanale per questo import,",
+"   eliminale o convertile in mensili, e dimmi esattamente cosa hai cambiato.",
+"4. Se ho gia' importato una voce con dati settimanali, ricalcolala per mese sommando le settimane dentro",
+"   lo stesso mese, senza duplicare la voce.",
+"5. quota_socio resta il numero da usare: e' GIA' al netto delle entrate (mutuo, caparre, acconti).",
+"   Positivo = esborso del socio nel mese. Negativo = incasso del socio nel mese.",
+"   Le settimane a cavallo di due mesi sono gia' attribuite al mese del loro lunedi' (il mese precedente):",
+"   non spostare nulla e non ricalcolare le date.",
+"6. Idempotenza: reimportare lo stesso file non deve raddoppiare nulla; una voce con lo stesso nome",
+"   operazione va aggiornata, non duplicata.",
+"",
+"Operazione di riferimento: "+String(p.name||"—")+(socio?(" · socio: "+socio.name):"")+".",
+"Quando hai finito, mostrami l'anteprima di un import di prova con i mesi riconosciuti e i relativi importi."
+  ].join("\n");
+}
+
+function exportSocioModal(p){
+  const parts=(p.partners||[]);
+  if(!S.plan||!S.plan.length){ toast("Il piano pagamenti e' vuoto",true); return }
+  const st={sid:parts.length?parts[0].id:"",iva:true,semi:false,solo:false};
+  const b=el("div");
+  const draw=()=>{
+    const socio=parts.find(x=>x.id===st.sid)||null;
+    let rows=partnerMonthly(p,st.sid,st.iva,!st.solo);
+    if(st.solo) rows=rows.filter(w=>Math.abs(w.quota)>0.005);
+    const tot=rows.reduce((a,w)=>a+w.quota,0);
+    const first=rows.length?rows[0].etichetta:"", last=rows.length?rows[rows.length-1].etichetta:"";
+    b.innerHTML=
+      '<p class="muted" style="font-size:12.5px;margin-bottom:14px">Esporta il fabbisogno di cassa <b>mese per mese</b> '+
+      'della quota di un socio, nel formato mensile di Augusta Holding. Le entrate (mutuo, caparre) sono gia'+"'"+
+      ' detratte: un valore negativo significa che quel mese il socio incassa. Una settimana a cavallo di due mesi '+
+      'viene contata nel mese del suo lunedi'+"'"+' (quindi nel mese precedente).</p>'+
+      '<div class="f2">'+
+        (parts.length?sel("ex_s","Socio",st.sid,parts.map(x=>[x.id,x.name+" ("+pct(N(x.quota),N(x.quota)%1?1:0)+")"]))
+          :'<div class="field"><label>Socio</label><input class="inp" disabled value="Nessun socio configurato"></div>')+
+        sel("ex_iva","Importi",st.iva?"1":"0",[["1","Cassa reale (IVA inclusa dove dovuta)"],["0","Solo imponibile"]])+
+      '</div>'+
+      '<div class="f2">'+
+        sel("ex_sep","Separatore CSV",st.semi?"1":"0",[["0","Virgola · per l\'import"],["1","Punto e virgola · per Excel italiano"]])+
+        '<div class="field"><label>Mesi</label>'+
+        '<label class="perm" style="margin-top:4px"><input type="checkbox" id="ex_solo"'+(st.solo?" checked":"")+'>'+
+        '<span class="t">Solo quelli con movimenti</span></label></div>'+
+      '</div>'+
+      '<div class="pm-tot">'+
+        '<div class="split"><span class="l">Socio</span><span class="v">'+esc(socio?socio.name:"—")+'</span></div>'+
+        '<div class="split"><span class="l">Mesi esportati</span><span class="v">'+rows.length+
+          (rows.length?' <span class="dim">'+esc(first)+' → '+esc(last)+'</span>':'')+'</span></div>'+
+        '<div class="split tot"><span class="l">Totale a carico del socio</span><span class="v">'+eurSigned(tot)+'</span></div>'+
+      '</div>'+
+      '<div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">'+
+        '<button class="btn btn-pri btn-sm" id="ex_json" type="button">'+IC.dl+'Scarica JSON</button>'+
+        '<button class="btn btn-sm" id="ex_csv" type="button">'+IC.dl+'Scarica CSV</button>'+
+        '<div class="sp" style="flex:1"></div>'+
+        '<button class="btn btn-sm" id="ex_pr" type="button">Prompt import</button>'+
+        '<button class="btn btn-sm" id="ex_fx" type="button">Prompt correttivo</button>'+
+      '</div>';
+    const s1=$("#ex_s",b); if(s1) s1.addEventListener("change",()=>{st.sid=s1.value;draw()});
+    const s2=$("#ex_iva",b); if(s2) s2.addEventListener("change",()=>{st.iva=s2.value==="1";draw()});
+    const s3=$("#ex_sep",b); if(s3) s3.addEventListener("change",()=>{st.semi=s3.value==="1";draw()});
+    const s4=$("#ex_solo",b); if(s4) s4.addEventListener("change",()=>{st.solo=s4.checked;draw()});
+    const base=(String(p.name||"operazione").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""))+
+      "_"+(socio?String(socio.name).toLowerCase().replace(/[^a-z0-9]+/g,"-"):"tutti")+"_cashflow-mensile";
+    $("#ex_json",b).addEventListener("click",()=>{
+      saveBlob(base+".json",new Blob([partnerJson(p,socio,rows,st.iva)],{type:"application/json"}));
+      toast("JSON scaricato · "+rows.length+" mesi");
+    });
+    $("#ex_csv",b).addEventListener("click",()=>{
+      saveBlob(base+".csv",new Blob([partnerCsv(p,socio,rows,st.iva,st.semi)],{type:"text/csv;charset=utf-8"}));
+      toast("CSV scaricato · "+rows.length+" mesi");
+    });
+    $("#ex_pr",b).addEventListener("click",()=>promptModal(p,socio,false));
+    $("#ex_fx",b).addEventListener("click",()=>promptModal(p,socio,true));
+  };
+  draw();
+  modal({title:"Cash flow mensile per socio",wide:true,body:b,ok:null,cancel:"Chiudi"});
+}
+
+function promptModal(p,socio,fix){
+  const txt=fix?augustaFixPrompt(p,socio):augustaPrompt(p,socio);
+  const b=el("div");
+  b.innerHTML='<p class="muted" style="font-size:12.5px;margin-bottom:10px">'+
+    (fix?'Incolla questo testo nella chat di Augusta Holding che aveva ricevuto il formato settimanale: le dice cosa cambiare per passare al mensile.'
+        :'Copia questo testo e incollalo nella chat di Augusta Holding: descrive il formato mensile del file e cosa deve fare l\'import.')+'</p>'+
+    '<textarea class="inp" id="pr_t" rows="16" style="font-family:var(--fm);font-size:11.5px;line-height:1.5" readonly></textarea>'+
+    '<div class="row" style="gap:8px;margin-top:10px"><button class="btn btn-pri btn-sm" id="pr_c" type="button">Copia negli appunti</button>'+
+    '<button class="btn btn-sm" id="pr_d" type="button">'+IC.dl+'Scarica .txt</button></div>';
+  $("#pr_t",b).value=txt;
+  $("#pr_c",b).addEventListener("click",async()=>{
+    const ta=$("#pr_t",b);
+    try{ await navigator.clipboard.writeText(txt); toast("Prompt copiato") }
+    catch(e){ ta.focus(); ta.select(); try{ document.execCommand("copy"); toast("Prompt copiato") }
+      catch(_){ toast("Seleziona il testo e copialo a mano",true) } }
+  });
+  $("#pr_d",b).addEventListener("click",()=>{
+    saveBlob(fix?"prompt-correzione-mensile-augusta.txt":"prompt-import-augusta-mensile.txt",
+      new Blob([txt],{type:"text/plain;charset=utf-8"}));
+  });
+  modal({title:fix?"Prompt correttivo · passaggio al mensile":"Prompt per Augusta Holding",wide:true,body:b,ok:null,cancel:"Chiudi"});
+}
+
+const APP_VER="v25 · 28.10.2026";
 
 /* ========================= INIT ========================= */
 const th=lsGet("repjt.theme"); document.documentElement.setAttribute("data-theme",th||"dark");
