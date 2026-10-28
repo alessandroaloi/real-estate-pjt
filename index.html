@@ -9677,7 +9677,8 @@ function viewFinance(sc,p){
       '<div class="sp"></div><span class="chip acc">'+eur0(planTot)+'</span>'+
       (planIn?'<span class="chip good">+ '+eur0(planIn)+'</span>':'')+
       '<button class="btn btn-sm" id="pl_today">Oggi</button>'+
-      '<button class="btn btn-sm" id="pl_xls">'+IC.dl+'Excel</button></div>'+
+      '<button class="btn btn-sm" id="pl_xls">'+IC.dl+'Excel</button>'+
+      '<button class="btn btn-sm" id="pl_soc">'+IC.dl+'Cash flow socio</button></div>'+
       '<div id="pay-host"></div></div>'+
       '<div class="grid g2" style="margin-bottom:12px"><div class="card"><div class="card-h"><h3>Totali piano di cassa</h3></div>'+
       '<div class="card-p" id="pl_tot"></div></div>'+
@@ -9709,6 +9710,7 @@ function viewFinance(sc,p){
     const xb=$("#pl_xls",page); if(xb) xb.addEventListener("click",async()=>{
       xb.disabled=true; const o=xb.innerHTML; xb.textContent="Genero…";
       await exportPayXlsx(p); xb.disabled=false; xb.innerHTML=o; });
+    const sb=$("#pl_soc",page); if(sb) sb.addEventListener("click",()=>exportSocioModal(p));
     const residuo=planTot-planPaid;
     $("#pl_tot",page).innerHTML=
       '<div class="split"><span class="l">Uscite pianificate ('+S.plan.filter(x=>!isIn(x)).length+')</span><span class="v">'+eur0(planOut)+'</span></div>'+
@@ -10249,7 +10251,206 @@ function viewDocs(sc,p){
   }
 }
 
-const APP_VER="v23 · 21.10.2026";
+
+/* ======================================================================
+   v24 — export del cash flow settimanale per singolo socio
+          (cassa reale: IVA dove dovuta, entrate già detratte)
+   ====================================================================== */
+function cashK(p,it){ return (it&&it.noVat)?1:(1+(N(p&&p.ivaRate)||22)/100) }
+
+/* settimane del piano viste dal singolo socio */
+function partnerWeekly(p,sid,withVat){
+  const map={};
+  (S.plan||[]).forEach(it=>{
+    const d=monday(pd(it.date)||new Date());
+    const k=iso(d);
+    if(!map[k]) map[k]={inizio:k,fine:iso(addD(d,6)),uscite:0,entrate:0,netto:0,quota:0};
+    const kk=withVat?cashK(p,it):1;
+    const amt=N(it.amount)*kk, sg=signOf(it);
+    if(sg>0) map[k].uscite+=amt; else map[k].entrate+=amt;
+    map[k].netto+=amt*sg;
+    if(sid){
+      const r=quotaSplit(p,it.amount,it.paidBy).find(x=>x.id===sid);
+      if(r) map[k].quota+=r.val*kk*sg;
+    } else map[k].quota+=amt*sg;
+  });
+  return Object.keys(map).sort().map(k=>map[k]);
+}
+const r2=v=>Math.round(N(v)*100)/100;
+
+function partnerCsv(p,socio,rows,withVat,sepSemi){
+  const sep=sepSemi?";":",";
+  const num=v=>{ const s=r2(v).toFixed(2); return sepSemi?s.replace(".",","):s };
+  const q=v=>{ const s=String(v==null?"":v); return (s.indexOf(sep)>=0||s.indexOf('"')>=0)?'"'+s.replace(/"/g,'""')+'"':s };
+  const head=["operazione","socio","quota_pct","data_inizio","data_fine","anno","mese",
+    "uscite","entrate","netto","quota_socio","iva"];
+  const lines=[head.join(sep)];
+  rows.forEach(w=>{
+    const d=pd(w.inizio);
+    lines.push([q(p.name||""),q(socio?socio.name:"TUTTI I SOCI"),
+      num(socio?N(socio.quota):100),w.inizio,w.fine,d.getFullYear(),d.getMonth()+1,
+      num(w.uscite),num(w.entrate),num(w.netto),num(w.quota),
+      withVat?"inclusa":"esclusa"].join(sep));
+  });
+  return "﻿"+lines.join("\r\n")+"\r\n";
+}
+function partnerJson(p,socio,rows,withVat){
+  const tot=rows.reduce((a,w)=>({uscite:a.uscite+w.uscite,entrate:a.entrate+w.entrate,
+    netto:a.netto+w.netto,quota:a.quota+w.quota}),{uscite:0,entrate:0,netto:0,quota:0});
+  return JSON.stringify({
+    fonte:"REAL ESTATE PJT",
+    versione_formato:1,
+    operazione:p.name||"",
+    indirizzo:p.address||p.city||"",
+    socio:socio?socio.name:"TUTTI I SOCI",
+    quota_pct:socio?N(socio.quota):100,
+    valuta:"EUR",
+    iva:withVat?"inclusa":"esclusa",
+    generato_il:iso(new Date()),
+    nota:"quota_socio e' gia' al netto delle entrate (mutuo, incassi): valore positivo = esborso, negativo = incasso",
+    settimane:rows.map(w=>({data_inizio:w.inizio,data_fine:w.fine,
+      uscite:r2(w.uscite),entrate:r2(w.entrate),netto:r2(w.netto),quota_socio:r2(w.quota)})),
+    totali:{uscite:r2(tot.uscite),entrate:r2(tot.entrate),netto:r2(tot.netto),quota_socio:r2(tot.quota)}
+  },null,1);
+}
+function augustaPrompt(p,socio){
+  return [
+"Devi aggiungere ad Augusta Holding una funzione di import del cash flow settimanale di un'operazione immobiliare.",
+"",
+"CONTESTO",
+"Il gestionale REAL ESTATE PJT esporta, per un singolo socio, il fabbisogno di cassa settimana per settimana di una",
+"operazione immobiliare. Il file arriva in JSON (preferito) o CSV con le stesse colonne.",
+"",
+"FORMATO JSON",
+"{",
+'  "fonte": "REAL ESTATE PJT",',
+'  "versione_formato": 1,',
+'  "operazione": "'+String(p.name||"NOME OPERAZIONE")+'",',
+'  "socio": "'+(socio?socio.name:"NOME SOCIO")+'",',
+'  "quota_pct": '+(socio?N(socio.quota):100)+',',
+'  "valuta": "EUR",',
+'  "iva": "inclusa",',
+'  "generato_il": "2026-10-28",',
+'  "settimane": [',
+'    { "data_inizio": "2026-10-05", "data_fine": "2026-10-11",',
+'      "uscite": 25000.00, "entrate": 0.00, "netto": 25000.00, "quota_socio": 10625.00 }',
+"  ],",
+'  "totali": { "uscite": 0, "entrate": 0, "netto": 0, "quota_socio": 0 }',
+"}",
+"",
+"FORMATO CSV (stesse informazioni, una riga per settimana)",
+"operazione,socio,quota_pct,data_inizio,data_fine,anno,mese,uscite,entrate,netto,quota_socio,iva",
+"",
+"SIGNIFICATO DEI CAMPI",
+"- data_inizio e' sempre un lunedi'; data_fine la domenica successiva.",
+"- uscite = pagamenti previsti di quella settimana per l'INTERA operazione.",
+"- entrate = incassi previsti della settimana per l'intera operazione (erogazioni di mutuo, caparre, acconti).",
+"- netto = uscite meno entrate per l'intera operazione.",
+"- quota_socio = la parte di netto che compete a QUESTO socio secondo la sua quota.",
+"  E' il numero da usare nel cash flow: e' GIA' al netto delle entrate, quindi il mutuo e' gia' stato detratto.",
+"  Positivo = soldi che il socio deve mettere. Negativo = soldi che il socio incassa.",
+"- iva: \"inclusa\" significa che gli importi sono gia' comprensivi di IVA dove dovuta (cassa reale).",
+"",
+"COSA DEVI COSTRUIRE",
+"1. Un pulsante \"Importa cash flow operazione\" che accetta un file .json o .csv.",
+"2. Leggi il file e mostra un'anteprima: nome operazione, socio, numero di settimane, periodo coperto,",
+"   totale quota_socio. Chiedi conferma prima di scrivere.",
+"3. Alla conferma crea nel cash flow una NUOVA VOCE di uscita chiamata esattamente come il campo \"operazione\".",
+"   Se una voce con quello stesso nome esiste gia', NON duplicarla: sostituisci i suoi importi con quelli nuovi",
+"   nel periodo coperto dal file, lasciando intatte le settimane fuori da quel periodo.",
+"4. Per ogni elemento di \"settimane\" registra l'importo \"quota_socio\" nella settimana che inizia in \"data_inizio\".",
+"   Se il cash flow e' mensile, somma le settimane dentro lo stesso mese usando il mese di data_inizio.",
+"5. Gli importi negativi vanno trattati come entrate, non come uscite con il segno sbagliato.",
+"6. Salva insieme alla voce: operazione, socio, quota_pct, data di generazione e versione_formato,",
+"   cosi' un import successivo dello stesso file riconosce di essere un aggiornamento.",
+"7. Idempotenza: reimportare lo stesso file non deve raddoppiare nulla.",
+"",
+"VINCOLI",
+"- Non modificare altre voci del cash flow.",
+"- Se \"fonte\" non e' \"REAL ESTATE PJT\" o manca \"settimane\", rifiuta il file con un messaggio chiaro.",
+"- Se il file contiene un socio diverso da quello gia' importato per la stessa operazione, avvisami prima di procedere."
+  ].join("\n");
+}
+
+function exportSocioModal(p){
+  const parts=(p.partners||[]);
+  if(!S.plan||!S.plan.length){ toast("Il piano pagamenti e' vuoto",true); return }
+  const st={sid:parts.length?parts[0].id:"",iva:true,semi:false,solo:true};
+  const b=el("div");
+  const draw=()=>{
+    const socio=parts.find(x=>x.id===st.sid)||null;
+    let rows=partnerWeekly(p,st.sid,st.iva);
+    if(st.solo) rows=rows.filter(w=>Math.abs(w.quota)>0.005);
+    const tot=rows.reduce((a,w)=>a+w.quota,0);
+    const first=rows.length?rows[0].inizio:"", last=rows.length?rows[rows.length-1].fine:"";
+    b.innerHTML=
+      '<p class="muted" style="font-size:12.5px;margin-bottom:14px">Esporta il fabbisogno di cassa settimana per settimana '+
+      'della quota di un socio. Le entrate (mutuo, caparre) sono gia' + "'" + ' detratte: il valore negativo significa che quella settimana il socio incassa.</p>'+
+      '<div class="f2">'+
+        (parts.length?sel("ex_s","Socio",st.sid,parts.map(x=>[x.id,x.name+" ("+pct(N(x.quota),N(x.quota)%1?1:0)+")"]))
+          :'<div class="field"><label>Socio</label><input class="inp" disabled value="Nessun socio configurato"></div>')+
+        sel("ex_iva","Importi",st.iva?"1":"0",[["1","Cassa reale (IVA inclusa dove dovuta)"],["0","Solo imponibile"]])+
+      '</div>'+
+      '<div class="f2">'+
+        sel("ex_sep","Separatore CSV",st.semi?"1":"0",[["0","Virgola · per l\'import"],["1","Punto e virgola · per Excel italiano"]])+
+        '<div class="field"><label>Settimane</label>'+
+        '<label class="perm" style="margin-top:4px"><input type="checkbox" id="ex_solo"'+(st.solo?" checked":"")+'>'+
+        '<span class="t">Solo quelle con movimenti</span></label></div>'+
+      '</div>'+
+      '<div class="pm-tot">'+
+        '<div class="split"><span class="l">Socio</span><span class="v">'+esc(socio?socio.name:"—")+'</span></div>'+
+        '<div class="split"><span class="l">Settimane esportate</span><span class="v">'+rows.length+
+          (rows.length?' <span class="dim">'+fmtD(first)+' → '+fmtD(last)+'</span>':'')+'</span></div>'+
+        '<div class="split tot"><span class="l">Totale a carico del socio</span><span class="v">'+eurSigned(tot)+'</span></div>'+
+      '</div>'+
+      '<div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">'+
+        '<button class="btn btn-pri btn-sm" id="ex_json" type="button">'+IC.dl+'Scarica JSON</button>'+
+        '<button class="btn btn-sm" id="ex_csv" type="button">'+IC.dl+'Scarica CSV</button>'+
+        '<div class="sp" style="flex:1"></div>'+
+        '<button class="btn btn-sm" id="ex_pr" type="button">Prompt per Augusta Holding</button>'+
+      '</div>';
+    const s1=$("#ex_s",b); if(s1) s1.addEventListener("change",()=>{st.sid=s1.value;draw()});
+    const s2=$("#ex_iva",b); if(s2) s2.addEventListener("change",()=>{st.iva=s2.value==="1";draw()});
+    const s3=$("#ex_sep",b); if(s3) s3.addEventListener("change",()=>{st.semi=s3.value==="1";draw()});
+    const s4=$("#ex_solo",b); if(s4) s4.addEventListener("change",()=>{st.solo=s4.checked;draw()});
+    const base=(String(p.name||"operazione").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""))+
+      "_"+(socio?String(socio.name).toLowerCase().replace(/[^a-z0-9]+/g,"-"):"tutti")+"_cashflow";
+    $("#ex_json",b).addEventListener("click",()=>{
+      saveBlob(base+".json",new Blob([partnerJson(p,socio,rows,st.iva)],{type:"application/json"}));
+      toast("JSON scaricato · "+rows.length+" settimane");
+    });
+    $("#ex_csv",b).addEventListener("click",()=>{
+      saveBlob(base+".csv",new Blob([partnerCsv(p,socio,rows,st.iva,st.semi)],{type:"text/csv;charset=utf-8"}));
+      toast("CSV scaricato · "+rows.length+" settimane");
+    });
+    $("#ex_pr",b).addEventListener("click",()=>promptModal(p,socio));
+  };
+  draw();
+  modal({title:"Cash flow per socio",wide:true,body:b,ok:null,cancel:"Chiudi"});
+}
+
+function promptModal(p,socio){
+  const txt=augustaPrompt(p,socio);
+  const b=el("div");
+  b.innerHTML='<p class="muted" style="font-size:12.5px;margin-bottom:10px">Copia questo testo e incollalo nella chat di '+
+    'Augusta Holding: descrive il formato del file e cosa deve fare l\'import.</p>'+
+    '<textarea class="inp" id="pr_t" rows="16" style="font-family:var(--fm);font-size:11.5px;line-height:1.5" readonly></textarea>'+
+    '<div class="row" style="gap:8px;margin-top:10px"><button class="btn btn-pri btn-sm" id="pr_c" type="button">Copia negli appunti</button>'+
+    '<button class="btn btn-sm" id="pr_d" type="button">'+IC.dl+'Scarica .txt</button></div>';
+  $("#pr_t",b).value=txt;
+  $("#pr_c",b).addEventListener("click",async()=>{
+    const ta=$("#pr_t",b);
+    try{ await navigator.clipboard.writeText(txt); toast("Prompt copiato") }
+    catch(e){ ta.focus(); ta.select(); try{ document.execCommand("copy"); toast("Prompt copiato") }
+      catch(_){ toast("Seleziona il testo e copialo a mano",true) } }
+  });
+  $("#pr_d",b).addEventListener("click",()=>{
+    saveBlob("prompt-import-augusta.txt",new Blob([txt],{type:"text/plain;charset=utf-8"}));
+  });
+  modal({title:"Prompt per Augusta Holding",wide:true,body:b,ok:null,cancel:"Chiudi"});
+}
+
+const APP_VER="v24 · 28.10.2026";
 
 /* ========================= INIT ========================= */
 const th=lsGet("repjt.theme"); document.documentElement.setAttribute("data-theme",th||"dark");
